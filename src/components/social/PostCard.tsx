@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSequence, withSpring } from 'react-native-reanimated';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useSocialStore } from '../../stores/useSocialStore';
+import { useNotificationsStore } from '../../stores/useNotificationsStore';
 import { typography, spacing, borderRadius } from '../../theme';
 import type { SocialPost } from '../../types/cocktail';
 
@@ -30,16 +31,21 @@ function timeAgo(timestamp: number): string {
   return `${days}d`;
 }
 
+const CURRENT_USERNAME = 'you';
+
 interface PostCardProps {
   post: SocialPost;
   index: number;
+  /** When true (e.g. on post detail screen), comments section is expanded by default. */
+  defaultExpandComments?: boolean;
 }
 
-export function PostCard({ post, index }: PostCardProps) {
+export function PostCard({ post, index, defaultExpandComments = false }: PostCardProps) {
   const router = useRouter();
   const { theme } = useThemeStore();
   const { toggleLike, isLiked, addComment, toggleSave, isSaved, deletePost } = useSocialStore();
-  const [showComments, setShowComments] = useState(false);
+  const addNotification = useNotificationsStore((s) => s.addNotification);
+  const [showComments, setShowComments] = useState(defaultExpandComments);
   const [commentText, setCommentText] = useState('');
 
   const liked = isLiked(post.id);
@@ -60,8 +66,19 @@ export function PostCard({ post, index }: PostCardProps) {
 
   const handleComment = () => {
     if (!commentText.trim()) return;
-    addComment(post.id, commentText.trim());
+    const text = commentText.trim();
+    addComment(post.id, text);
     setCommentText('');
+    // Notify post owner when someone else comments (not when you comment on your own post).
+    if (post.username !== CURRENT_USERNAME) {
+      addNotification({
+        type: 'comment',
+        title: 'New comment',
+        body: `${CURRENT_USERNAME}: "${text.length > 50 ? text.slice(0, 50) + '...' : text}"`,
+        username: CURRENT_USERNAME,
+        postId: post.id,
+      });
+    }
   };
 
   const handleMorePress = () => {

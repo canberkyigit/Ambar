@@ -18,9 +18,12 @@ interface BACEstimatorProps {
   ingredients: Ingredient[];
 }
 
+const FALLBACK_PROFILE = { weight: 70, gender: 'male' as const };
+
 export function BACEstimator({ ingredients }: BACEstimatorProps) {
   const { theme } = useThemeStore();
-  const { profile, setProfile } = useUserProfileStore();
+  const { profile: storedProfile, setProfile } = useUserProfileStore();
+  const profile = storedProfile ?? FALLBACK_PROFILE;
   const [drinkCount, setDrinkCount] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [tempWeight, setTempWeight] = useState(profile.weight.toString());

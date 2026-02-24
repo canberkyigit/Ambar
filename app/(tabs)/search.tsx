@@ -7,7 +7,6 @@ import {
   Image,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
   Keyboard,
   RefreshControl,
 } from 'react-native';
@@ -16,25 +15,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
+import { useFavoritesStore } from '../../src/stores/useFavoritesStore';
 import { cocktailService } from '../../src/services/cocktailService';
 import { EmptyState } from '../../src/components/shared/EmptyState';
+import { CocktailListRowSkeleton } from '../../src/components/ui/Skeleton';
 import { typography, spacing, borderRadius } from '../../src/theme';
 import type { Cocktail } from '../../src/types/cocktail';
+import type { CocktailSummary } from '../../src/types/cocktail';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
 type FilterType = 'all' | 'alcoholic' | 'non_alcoholic';
+type ListMode = 'all' | 'favorites';
 
 export default function CocktailsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeStore();
+  const { favorites } = useFavoritesStore();
 
   const [allCocktails, setAllCocktails] = useState<Cocktail[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [listMode, setListMode] = useState<ListMode>('all');
 
   const fetchAll = useCallback(async () => {
     try {
@@ -92,13 +97,24 @@ export default function CocktailsScreen() {
     return data.sort((a, b) => a.strDrink.localeCompare(b.strDrink));
   }, [allCocktails, query, filter]);
 
+  const favoritesFiltered = useMemo(() => {
+    if (!query.trim()) return [...favorites].sort((a, b) => a.strDrink.localeCompare(b.strDrink));
+    const q = query.toLowerCase();
+    return favorites
+      .filter((c) => c.strDrink.toLowerCase().includes(q))
+      .sort((a, b) => a.strDrink.localeCompare(b.strDrink));
+  }, [favorites, query]);
+
+  const listData = listMode === 'favorites' ? favoritesFiltered : filteredData;
+  const isFavoritesMode = listMode === 'favorites';
+
   const filters: { key: FilterType; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'alcoholic', label: 'Alcoholic' },
     { key: 'non_alcoholic', label: 'Non-Alcoholic' },
   ];
 
-  const renderItem = ({ item }: { item: Cocktail }) => (
+  const renderCocktailItem = ({ item }: { item: Cocktail }) => (
     <Pressable
       onPress={() => router.push(`/cocktail/${item.idDrink}`)}
       style={({ pressed }) => [
@@ -140,6 +156,34 @@ export default function CocktailsScreen() {
     </Pressable>
   );
 
+  const renderFavoriteItem = ({ item }: { item: CocktailSummary }) => (
+    <Pressable
+      onPress={() => router.push(`/cocktail/${item.idDrink}`)}
+      style={({ pressed }) => [
+        styles.listItem,
+        { backgroundColor: pressed ? theme.surface : 'transparent' },
+      ]}
+    >
+      <Image source={{ uri: item.strDrinkThumb }} style={styles.listImage} />
+      <View style={styles.listInfo}>
+        <Text style={[styles.listName, { color: theme.text }]} numberOfLines={1}>
+          {item.strDrink}
+        </Text>
+        <Text style={[styles.listCategory, { color: theme.textTertiary }]} numberOfLines={1}>
+          Favorite
+        </Text>
+      </View>
+      <Ionicons name="heart" size={18} color="#EF4444" />
+      <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
+    </Pressable>
+  );
+
+  const renderItem = ({ item }: { item: Cocktail | CocktailSummary }) =>
+    isFavoritesMode ? renderFavoriteItem({ item: item as CocktailSummary }) : renderCocktailItem({ item: item as Cocktail });
+
+  const showSkeleton = loading && !isFavoritesMode && allCocktails.length === 0;
+  const SKELETON_ROWS = 12;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
       <Animated.View entering={FadeInDown.springify()} style={styles.header}>
@@ -174,6 +218,34 @@ export default function CocktailsScreen() {
           <Ionicons name="chevron-forward" size={14} color={theme.accent} />
         </Pressable>
 
+        <View style={styles.listModeTabs}>
+          <Pressable
+            onPress={() => setListMode('all')}
+            style={[
+              styles.listModeTab,
+              { backgroundColor: listMode === 'all' ? theme.accent : theme.surfaceSecondary },
+            ]}
+          >
+            <Ionicons name="list" size={18} color={listMode === 'all' ? '#FFFFFF' : theme.textSecondary} />
+            <Text style={[styles.listModeTabText, { color: listMode === 'all' ? '#FFFFFF' : theme.textSecondary }]}>
+              All
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setListMode('favorites')}
+            style={[
+              styles.listModeTab,
+              { backgroundColor: listMode === 'favorites' ? theme.accent : theme.surfaceSecondary },
+            ]}
+          >
+            <Ionicons name="heart" size={18} color={listMode === 'favorites' ? '#FFFFFF' : theme.textSecondary} />
+            <Text style={[styles.listModeTabText, { color: listMode === 'favorites' ? '#FFFFFF' : theme.textSecondary }]}>
+              Favorites ({favorites.length})
+            </Text>
+          </Pressable>
+        </View>
+
+        {listMode === 'all' && (
         <View style={styles.filters}>
           {filters.map((f) => (
             <Pressable
@@ -197,23 +269,33 @@ export default function CocktailsScreen() {
             </Pressable>
           ))}
         </View>
+        )}
 
         <Text style={[styles.countLabel, { color: theme.textTertiary }]}>
-          {loading ? 'Loading...' : `${filteredData.length} cocktails`}
+          {showSkeleton ? 'Loading...' : `${listData.length} cocktail${listData.length !== 1 ? 's' : ''}`}
         </Text>
       </Animated.View>
 
-      {loading && allCocktails.length === 0 ? (
-        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
-      ) : filteredData.length === 0 ? (
+      {showSkeleton ? (
+        <View style={styles.skeletonList}>
+          {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+            <View key={i}>
+              <CocktailListRowSkeleton />
+              {i < SKELETON_ROWS - 1 && (
+                <View style={[styles.separator, { backgroundColor: theme.border }]} />
+              )}
+            </View>
+          ))}
+        </View>
+      ) : listData.length === 0 ? (
         <EmptyState
-          icon="wine-outline"
-          title="No cocktails found"
-          subtitle="Try a different search term or filter"
+          icon={isFavoritesMode ? 'heart-outline' : 'wine-outline'}
+          title={isFavoritesMode ? 'No favorites yet' : 'No cocktails found'}
+          subtitle={isFavoritesMode ? 'Add cocktails to favorites from their detail screen' : 'Try a different search term or filter'}
         />
       ) : (
         <FlatList
-          data={filteredData}
+          data={listData}
           keyExtractor={(item) => item.idDrink}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
@@ -280,6 +362,23 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
   },
   filterText: { ...typography.captionBold },
+  listModeTabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  listModeTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+  },
+  listModeTabText: { ...typography.captionBold },
+  skeletonList: {
+    paddingBottom: 120,
+  },
   countLabel: {
     ...typography.small,
     fontWeight: '600',

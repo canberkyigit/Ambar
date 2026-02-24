@@ -58,6 +58,32 @@ export function CocktailCardSkeleton() {
   );
 }
 
+/** Single row skeleton for cocktail list (image + 2 lines). */
+export function CocktailListRowSkeleton() {
+  return (
+    <View style={listRowStyles.row}>
+      <Skeleton width={50} height={50} borderRadius={br.md} />
+      <View style={listRowStyles.info}>
+        <Skeleton width="70%" height={14} />
+        <Skeleton width="45%" height={12} style={{ marginTop: 6 }} />
+      </View>
+    </View>
+  );
+}
+
+const listRowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  info: {
+    flex: 1,
+  },
+});
+
 const styles = StyleSheet.create({
   card: {
     borderRadius: br.lg,

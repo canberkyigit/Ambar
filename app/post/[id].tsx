@@ -34,7 +34,7 @@ export default function PostDetailScreen() {
         </Pressable>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        <PostCard post={post} index={0} />
+        <PostCard post={post} index={0} defaultExpandComments />
       </ScrollView>
     </View>
   );
