@@ -18,9 +18,6 @@ A React Native (Expo) app for discovering cocktails, sharing posts, finding bars
 - **Dark / light theme** – Toggle in Settings
 - **Other** – My Bar, Journal, Collections, Achievements, Unit converter, Create recipe, Step-by-step preparation
 
-## Screenshots
-
-*(Add screenshots from your app here.)*
 
 ## Getting started
 
