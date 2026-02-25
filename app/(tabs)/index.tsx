@@ -9,7 +9,7 @@ import {
   RefreshControl,
   Keyboard,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import { useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore } from '../../src/stores/useThemeStore';
@@ -19,7 +19,7 @@ import { typography, spacing, borderRadius } from '../../src/theme';
 import type { SocialPost } from '../../src/types/cocktail';
 
 export default function FeedScreen() {
-  const insets = useSafeAreaInsets();
+  const { paddingTop: headerPadding } = useHeaderPadding();
   const navigation = useNavigation();
   const router = useRouter();
   const { theme } = useThemeStore();
@@ -73,10 +73,13 @@ export default function FeedScreen() {
   }, [searchQuery]);
 
   const headerComponent = (
-    <View>
+    <View style={styles.headerWrap}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.logo, { color: theme.text }]}>Cocktail Feed</Text>
+      <View style={[styles.header, { paddingTop: headerPadding }]}>
+        <View style={styles.logoRow}>
+          <Text style={[styles.logo, { color: theme.text }]}>A M B A R</Text>
+          <Ionicons name="wine" size={24} color={theme.text} />
+        </View>
         <View style={styles.headerRight}>
           <Pressable onPress={() => router.push('/create-post')} hitSlop={8} style={styles.headerBtn}>
             <Ionicons name="add-circle-outline" size={26} color={theme.text} />
@@ -161,12 +164,20 @@ export default function FeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrap: {
+    paddingBottom: spacing.md,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   logo: {
     ...typography.h1,

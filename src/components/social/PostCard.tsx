@@ -15,7 +15,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSequence, w
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useSocialStore } from '../../stores/useSocialStore';
 import { useNotificationsStore } from '../../stores/useNotificationsStore';
-import { typography, spacing, borderRadius } from '../../theme';
+import { typography, spacing, borderRadius, fontFamilies } from '../../theme';
 import type { SocialPost } from '../../types/cocktail';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -205,7 +205,7 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
         <View style={styles.commentsSection}>
           {post.comments.map((c) => (
             <Text key={c.id} style={[styles.commentText, { color: theme.text }]}>
-              <Text style={styles.captionUsername}>{c.username} </Text>
+              <Text style={styles.commentUsername}>{c.username} </Text>
               {c.text}
             </Text>
           ))}
@@ -234,6 +234,14 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
 const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    marginHorizontal: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   userRow: {
     flexDirection: 'row',
@@ -308,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     lineHeight: 18,
   },
-  captionUsername: { fontWeight: '700' },
+  captionUsername: { fontFamily: fontFamilies.bold, fontWeight: '700' },
   viewComments: {
     ...typography.caption,
     paddingHorizontal: spacing.md,
@@ -318,12 +326,16 @@ const styles = StyleSheet.create({
   commentsSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.lg,
     gap: spacing.xs,
   },
   commentText: {
     ...typography.caption,
     lineHeight: 18,
+  },
+  commentUsername: {
+    fontFamily: fontFamilies.bold,
+    fontWeight: '700',
   },
   commentInput: {
     flexDirection: 'row',

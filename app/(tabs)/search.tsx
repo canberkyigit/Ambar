@@ -13,11 +13,12 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useFavoritesStore } from '../../src/stores/useFavoritesStore';
+import { useSearchHistoryStore } from '../../src/stores/useSearchHistoryStore';
 import { cocktailService } from '../../src/services/cocktailService';
 import { getCocktailAttributes } from '../../src/utils/cocktailAttributes';
 import { EmptyState } from '../../src/components/shared/EmptyState';
@@ -51,9 +52,10 @@ function isDefaultAttrFilter(f: typeof DEFAULT_ATTR_FILTER) {
 
 export default function CocktailsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { paddingTop: headerPadding } = useHeaderPadding();
   const { theme } = useThemeStore();
   const { favorites } = useFavoritesStore();
+  const { history, addSearch, removeSearch, clearHistory } = useSearchHistoryStore();
 
   const [allCocktails, setAllCocktails] = useState<Cocktail[]>([]);
   const [query, setQuery] = useState('');
@@ -241,7 +243,7 @@ export default function CocktailsScreen() {
   const SKELETON_ROWS = 12;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: headerPadding }]}>
       <Animated.View entering={FadeInDown.springify()} style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Cocktails</Text>
 
@@ -253,6 +255,7 @@ export default function CocktailsScreen() {
             placeholderTextColor={theme.textTertiary}
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={() => { if (query.trim()) addSearch(query.trim()); }}
             returnKeyType="search"
             autoCorrect={false}
           />
@@ -446,6 +449,30 @@ export default function CocktailsScreen() {
         </Text>
       </Animated.View>
 
+      {!query.trim() && !isFavoritesMode && history.length > 0 && !showSkeleton && (
+        <View style={styles.historySection}>
+          <View style={styles.historyHeader}>
+            <Text style={[styles.historyTitle, { color: theme.textSecondary }]}>Son aramalar</Text>
+            <Pressable onPress={clearHistory} hitSlop={8}>
+              <Text style={[styles.historyClear, { color: theme.accent }]}>Temizle</Text>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyList}>
+            {history.map((term) => (
+              <Pressable
+                key={term}
+                onPress={() => { setQuery(term); addSearch(term); }}
+                onLongPress={() => removeSearch(term)}
+                style={[styles.historyChip, { backgroundColor: theme.surfaceSecondary, borderColor: theme.border }]}
+              >
+                <Ionicons name="time-outline" size={14} color={theme.textTertiary} />
+                <Text style={[styles.historyChipText, { color: theme.text }]} numberOfLines={1}>{term}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {showSkeleton ? (
         <View style={styles.skeletonList}>
           {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
@@ -633,4 +660,30 @@ const styles = StyleSheet.create({
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   slider: { flex: 1, height: 32 },
   sliderValue: { ...typography.captionBold, minWidth: 56, textAlign: 'right' },
+  historySection: {
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  historyTitle: { ...typography.captionBold },
+  historyClear: { ...typography.caption },
+  historyList: {
+    gap: spacing.sm,
+  },
+  historyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  historyChipText: { ...typography.caption, maxWidth: 120 },
 });

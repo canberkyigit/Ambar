@@ -8,9 +8,10 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useThemeStore } from '../../src/stores/useThemeStore';
@@ -41,7 +42,7 @@ function distanceKm(
 }
 
 export default function BarsScreen() {
-  const insets = useSafeAreaInsets();
+  const { paddingTop: headerPadding, insets } = useHeaderPadding();
   const router = useRouter();
   const { theme } = useThemeStore();
   const {
@@ -130,7 +131,7 @@ export default function BarsScreen() {
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: headerPadding }]}>
       {/* Search */}
       <View style={[styles.searchWrap, { paddingHorizontal: spacing.lg }]}>
         <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -237,105 +238,110 @@ export default function BarsScreen() {
         )}
       </ScrollView>
 
-      {/* Bar detail sheet */}
-      {selectedBar && (
-        <>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedBar(null)} />
-          <View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: theme.background,
-                paddingBottom: insets.bottom + spacing.lg,
-              },
-            ]}
-            onStartShouldSetResponder={() => true}
-          >
-            <Pressable onPress={() => setSelectedBar(null)}>
-              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
-              <View style={styles.sheetHeader}>
-                <View style={styles.sheetTitleRow}>
+      {/* Bar detail popup */}
+      <Modal
+        visible={!!selectedBar}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedBar(null)}
+      >
+        <Pressable
+          style={[styles.popupOverlay, { backgroundColor: theme.overlay }]}
+          onPress={() => setSelectedBar(null)}
+        >
+          <Pressable style={[styles.popupCard, { backgroundColor: theme.background }]} onPress={() => {}}>
+            {selectedBar && (
+              <>
+                <View style={styles.popupHeader}>
                   <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
                     {selectedBar.name}
                   </Text>
                   <Pressable
-                    onPress={() => toggleSavedBar(selectedBar.id)}
-                    style={[styles.saveBarBtn, { backgroundColor: isBarSaved(selectedBar.id) ? theme.accent + '25' : theme.surface, borderColor: theme.border }]}
+                    onPress={() => setSelectedBar(null)}
+                    hitSlop={8}
+                    style={[styles.popupCloseBtn, { backgroundColor: theme.surface }]}
                   >
-                    <Ionicons
-                      name={isBarSaved(selectedBar.id) ? 'bookmark' : 'bookmark-outline'}
-                      size={20}
-                      color={theme.accent}
-                    />
-                    <Text style={[styles.saveBarBtnText, { color: theme.accent }]}>
-                      {isBarSaved(selectedBar.id) ? 'Saved' : 'Save bar'}
-                    </Text>
+                    <Ionicons name="close" size={22} color={theme.text} />
                   </Pressable>
                 </View>
-                {(() => {
-                  const { rating, count } = getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount);
-                  return (
+                <View style={styles.popupBody}>
+                  <View style={styles.sheetTitleRow}>
                     <View style={styles.sheetMeta}>
                       <Ionicons name="star" size={14} color="#F59E0B" />
-                      <Text style={[styles.sheetRating, { color: theme.text }]}>{rating.toFixed(1)}</Text>
+                      <Text style={[styles.sheetRating, { color: theme.text }]}>
+                        {getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount).rating.toFixed(1)}
+                      </Text>
                       <Text style={[styles.sheetReviews, { color: theme.textSecondary }]}>
-                        ({count} reviews)
+                        ({getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount).count} reviews)
                       </Text>
                     </View>
-                  );
-                })()}
-                <Text style={[styles.sheetAddress, { color: theme.textTertiary }]}>
-                  {selectedBar.address ?? `${selectedBar.city}, ${selectedBar.country}`}
-                </Text>
-                <Text style={[styles.rateLabel, { color: theme.textSecondary }]}>Rate this bar</Text>
-                <View style={styles.starsRow}>
-                  {[1, 2, 3, 4, 5].map((star) => {
-                    const current = getRating(selectedBar.id);
-                    const filled = current != null ? star <= current : false;
-                    return (
-                      <Pressable
-                        key={star}
-                        onPress={() => setRating(selectedBar.id, star)}
-                        hitSlop={8}
-                        style={styles.starBtn}
-                      >
-                        <Ionicons
-                          name={filled ? 'star' : 'star-outline'}
-                          size={28}
-                          color={filled ? '#F59E0B' : theme.textTertiary}
-                        />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <Text style={[styles.menuLabel, { color: theme.textSecondary }]}>Cocktail menu</Text>
-              <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
-                <View style={styles.menuList}>
-                  {selectedBar.menu.map((item) => (
                     <Pressable
-                      key={item.cocktailId}
-                      onPress={() => {
-                        setSelectedBar(null);
-                        router.push(`/cocktail/${item.cocktailId}`);
-                      }}
-                      style={({ pressed }) => [
-                        styles.menuItem,
-                        { backgroundColor: pressed ? theme.surface : 'transparent' },
-                      ]}
+                      onPress={() => toggleSavedBar(selectedBar.id)}
+                      style={[styles.saveBarBtn, { backgroundColor: isBarSaved(selectedBar.id) ? theme.accent + '25' : theme.surface, borderColor: theme.border }]}
                     >
-                      <Text style={[styles.menuItemName, { color: theme.text }]} numberOfLines={1}>
-                        {item.cocktailName}
+                      <Ionicons
+                        name={isBarSaved(selectedBar.id) ? 'bookmark' : 'bookmark-outline'}
+                        size={20}
+                        color={theme.accent}
+                      />
+                      <Text style={[styles.saveBarBtnText, { color: theme.accent }]}>
+                        {isBarSaved(selectedBar.id) ? 'Saved' : 'Save bar'}
                       </Text>
-                      <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
                     </Pressable>
-                  ))}
+                  </View>
+                  <Text style={[styles.sheetAddress, { color: theme.textTertiary }]}>
+                    {selectedBar.address ?? `${selectedBar.city}, ${selectedBar.country}`}
+                  </Text>
+                  <Text style={[styles.rateLabel, { color: theme.textSecondary }]}>Rate this bar</Text>
+                  <View style={styles.starsRow}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const current = getRating(selectedBar.id);
+                      const filled = current != null ? star <= current : false;
+                      return (
+                        <Pressable
+                          key={star}
+                          onPress={() => setRating(selectedBar.id, star)}
+                          hitSlop={8}
+                          style={styles.starBtn}
+                        >
+                          <Ionicons
+                            name={filled ? 'star' : 'star-outline'}
+                            size={28}
+                            color={filled ? '#F59E0B' : theme.textTertiary}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={[styles.menuLabel, { color: theme.textSecondary }]}>Cocktail menu</Text>
+                  <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+                    <View style={styles.menuList}>
+                      {selectedBar.menu.map((item) => (
+                        <Pressable
+                          key={item.cocktailId}
+                          onPress={() => {
+                            setSelectedBar(null);
+                            router.push(`/cocktail/${item.cocktailId}`);
+                          }}
+                          style={({ pressed }) => [
+                            styles.menuItem,
+                            { backgroundColor: pressed ? theme.surface : 'transparent' },
+                          ]}
+                        >
+                          <Text style={[styles.menuItemName, { color: theme.text }]} numberOfLines={1}>
+                            {item.cocktailName}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
                 </View>
-              </ScrollView>
-            </Pressable>
-          </View>
-        </>
-      )}
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -399,25 +405,37 @@ const styles = StyleSheet.create({
   barMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   barRating: { ...typography.captionBold },
   barReviews: { ...typography.small },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
+  popupOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  popupCard: {
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '80%',
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    maxHeight: '55%',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
   },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
+  popupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.md,
+    gap: spacing.sm,
   },
-  sheetHeader: { marginBottom: spacing.md },
+  popupCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupBody: {},
   sheetTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.xs },
   sheetTitle: { ...typography.h3, flex: 1 },
   saveBarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.md, borderWidth: 1 },

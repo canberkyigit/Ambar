@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore } from '../../src/stores/useThemeStore';
@@ -30,7 +30,7 @@ const FEATURED_CARD_WIDTH = SCREEN_WIDTH * 0.78;
 
 export default function DiscoverScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { paddingTop: headerPadding } = useHeaderPadding();
   const { theme } = useThemeStore();
 
   const [featured, setFeatured] = useState<Cocktail[]>([]);
@@ -96,7 +96,7 @@ export default function DiscoverScreen() {
       }
     >
       {/* Header */}
-      <View style={[styles.headerRow, { marginTop: insets.top + spacing.sm }]}>
+      <View style={[styles.headerRow, { marginTop: headerPadding }]}>
         <Text style={[styles.pageTitle, { color: theme.text }]}>Discover</Text>
       </View>
 

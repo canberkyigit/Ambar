@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
@@ -23,7 +23,7 @@ type ViewMode = 'posts' | 'saved' | 'favorites' | 'bars';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { paddingTop: headerPadding } = useHeaderPadding();
   const { theme } = useThemeStore();
   const { favorites } = useFavoritesStore();
   const { recipes } = useCustomRecipeStore();
@@ -46,7 +46,7 @@ export default function ProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: headerPadding }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>{displayName}</Text>
         <View style={styles.headerRight}>
           <Pressable
