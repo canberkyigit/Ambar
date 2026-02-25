@@ -17,9 +17,11 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useFavoritesStore } from '../../src/stores/useFavoritesStore';
 import { useBarsStore } from '../../src/stores/useBarsStore';
+import { useShoppingListStore } from '../../src/stores/useShoppingListStore';
 import { cocktailService } from '../../src/services/cocktailService';
 import { shareCocktail } from '../../src/utils/share';
 import { extractIngredients } from '../../src/types/cocktail';
+import { scaleIngredients } from '../../src/utils/scaleMeasure';
 import { typography, spacing, borderRadius } from '../../src/theme';
 import { AlcoholInfo } from '../../src/components/cocktail/AlcoholInfo';
 import { BACEstimator } from '../../src/components/cocktail/BACEstimator';
@@ -37,9 +39,11 @@ export default function CocktailDetailScreen() {
   const { theme } = useThemeStore();
   const { isFavorite, toggleFavorite } = useFavoritesStore();
   const { setFilterCocktailName } = useBarsStore();
+  const { addFromCocktail } = useShoppingListStore();
 
   const [cocktail, setCocktail] = useState<Cocktail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [servings, setServings] = useState<1 | 2 | 4>(1);
 
   useEffect(() => {
     if (id) {
@@ -64,6 +68,7 @@ export default function CocktailDetailScreen() {
   }
 
   const ingredients = extractIngredients(cocktail);
+  const scaledIngredients = scaleIngredients(ingredients, servings);
   const favorite = isFavorite(cocktail.idDrink);
 
   return (
@@ -119,16 +124,37 @@ export default function CocktailDetailScreen() {
           {/* Alcohol Info */}
           <AlcoholInfo ingredients={ingredients} isAlcoholic={cocktail.strAlcoholic === 'Alcoholic'} />
 
+          {/* Servings scale */}
+          <Animated.View entering={FadeInDown.delay(120).springify()}>
+            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>SERVINGS</Text>
+            <View style={styles.servingsRow}>
+              {([1, 2, 4] as const).map((n) => (
+                <Pressable
+                  key={n}
+                  onPress={() => setServings(n)}
+                  style={[
+                    styles.servingsBtn,
+                    { backgroundColor: servings === n ? theme.accent : theme.surfaceSecondary },
+                  ]}
+                >
+                  <Text style={[styles.servingsBtnText, { color: servings === n ? '#FFF' : theme.textSecondary }]}>
+                    {n}x
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Animated.View>
+
           {/* Ingredients */}
           <Animated.View entering={FadeInDown.delay(150).springify()}>
             <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>INGREDIENTS</Text>
             <View style={[styles.card, { backgroundColor: theme.surface }]}>
-              {ingredients.map((item, index) => (
+              {scaledIngredients.map((item, index) => (
                 <View
                   key={index}
                   style={[
                     styles.ingredientRow,
-                    index < ingredients.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+                    index < scaledIngredients.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
                   ]}
                 >
                   <View style={styles.ingredientLeft}>
@@ -178,14 +204,33 @@ export default function CocktailDetailScreen() {
             </Animated.View>
           )}
 
-          {/* BAC Estimator */}
+          {/* BAC Estimator (uses base 1x ingredients for alcohol calc) */}
           <BACEstimator ingredients={ingredients} />
 
           {/* Party Mode */}
-          <PartyMode ingredients={ingredients} />
+          <Animated.View entering={FadeInDown.delay(360).springify()} style={{ marginBottom: spacing.md }}>
+            <PartyMode ingredients={ingredients} />
+          </Animated.View>
+
+          {/* Add to shopping list */}
+          <Animated.View entering={FadeInDown.delay(380).springify()} style={{ marginTop: spacing.xs }}>
+            <Pressable
+              onPress={() => {
+                addFromCocktail(cocktail.idDrink, cocktail.strDrink, ingredients);
+                router.push('/shopping-list');
+              }}
+              style={({ pressed }) => [
+                styles.shoppingListBtn,
+                { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Ionicons name="cart-outline" size={20} color={theme.accent} />
+              <Text style={[styles.findBarsBtnText, { color: theme.accent }]}>Add to shopping list</Text>
+            </Pressable>
+          </Animated.View>
 
           {/* Find bars that serve this */}
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
+          <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: spacing.md }}>
             <Pressable
               onPress={() => {
                 setFilterCocktailName(cocktail.strDrink);
@@ -268,6 +313,13 @@ const styles = StyleSheet.create({
     marginTop: spacing['2xl'],
     marginBottom: spacing.sm,
   },
+  servingsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  servingsBtn: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+  },
+  servingsBtnText: { ...typography.bodyBold },
   card: { borderRadius: borderRadius.xl, overflow: 'hidden' },
   ingredientRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -312,6 +364,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
   },
   tagText: { ...typography.caption },
+  shoppingListBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
   findBarsBtn: {
     flexDirection: 'row',
     alignItems: 'center',

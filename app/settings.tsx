@@ -9,6 +9,7 @@ import { useMyBarStore } from '../src/stores/useMyBarStore';
 import { useJournalStore } from '../src/stores/useJournalStore';
 import { useAchievementStore, ACHIEVEMENTS } from '../src/stores/useAchievementStore';
 import { useCollectionsStore } from '../src/stores/useCollectionsStore';
+import { useShoppingListStore } from '../src/stores/useShoppingListStore';
 import { typography, spacing, borderRadius } from '../src/theme';
 
 interface MenuItemProps {
@@ -54,6 +55,7 @@ export default function SettingsScreen() {
   const { entries } = useJournalStore();
   const { progress } = useAchievementStore();
   const { collections } = useCollectionsStore();
+  const { items: shoppingListItems } = useShoppingListStore();
   const { setHasSeenOnboarding } = useOnboardingStore();
   const unlockedCount = progress.filter((p) => p.unlockedAt != null).length;
 
@@ -107,6 +109,7 @@ export default function SettingsScreen() {
       <MenuItem icon="folder" label="Collections" subtitle={`${collections.length} collections`} color="#8B5CF6" onPress={() => router.push('/collections')} index={2} />
       <MenuItem icon="trophy" label="Achievements" subtitle={`${unlockedCount}/${ACHIEVEMENTS.length} unlocked`} color="#F59E0B" onPress={() => router.push('/achievements')} index={3} />
       <MenuItem icon="calculator" label="Unit Converter" color="#6366F1" onPress={() => router.push('/unit-converter')} index={4} />
+      <MenuItem icon="cart" label="Shopping list" subtitle={shoppingListItems.length ? `${shoppingListItems.length} items` : 'Ingredients from cocktails'} color="#EC4899" onPress={() => router.push('/shopping-list')} index={5} />
 
       {/* About */}
       <View style={styles.sectionHeader}>

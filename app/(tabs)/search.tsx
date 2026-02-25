@@ -9,14 +9,17 @@ import {
   Pressable,
   Keyboard,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useFavoritesStore } from '../../src/stores/useFavoritesStore';
 import { cocktailService } from '../../src/services/cocktailService';
+import { getCocktailAttributes } from '../../src/utils/cocktailAttributes';
 import { EmptyState } from '../../src/components/shared/EmptyState';
 import { CocktailListRowSkeleton } from '../../src/components/ui/Skeleton';
 import { typography, spacing, borderRadius } from '../../src/theme';
@@ -27,6 +30,24 @@ const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
 type FilterType = 'all' | 'alcoholic' | 'non_alcoholic';
 type ListMode = 'all' | 'favorites';
+
+const DEFAULT_ATTR_FILTER = {
+  alcoholMin: 0,
+  sweetnessMin: 0,
+  sournessMin: 0,
+  bitternessMin: 0,
+  caloriesMax: 500,
+};
+
+function isDefaultAttrFilter(f: typeof DEFAULT_ATTR_FILTER) {
+  return (
+    f.alcoholMin === DEFAULT_ATTR_FILTER.alcoholMin &&
+    f.sweetnessMin === DEFAULT_ATTR_FILTER.sweetnessMin &&
+    f.sournessMin === DEFAULT_ATTR_FILTER.sournessMin &&
+    f.bitternessMin === DEFAULT_ATTR_FILTER.bitternessMin &&
+    f.caloriesMax === DEFAULT_ATTR_FILTER.caloriesMax
+  );
+}
 
 export default function CocktailsScreen() {
   const router = useRouter();
@@ -40,6 +61,21 @@ export default function CocktailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [listMode, setListMode] = useState<ListMode>('all');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [attrFilter, setAttrFilter] = useState(DEFAULT_ATTR_FILTER);
+  const filterExpand = useSharedValue(0);
+
+  const toggleFilterPanel = useCallback(() => {
+    const next = showFilterModal ? 0 : 1;
+    filterExpand.value = withSpring(next, { damping: 20, stiffness: 200 });
+    setShowFilterModal(!showFilterModal);
+  }, [showFilterModal, filterExpand]);
+
+  const filterPanelAnimatedStyle = useAnimatedStyle(() => ({
+    maxHeight: filterExpand.value * 520,
+    opacity: filterExpand.value,
+    overflow: 'hidden' as const,
+  }));
 
   const fetchAll = useCallback(async () => {
     try {
@@ -76,6 +112,12 @@ export default function CocktailsScreen() {
     setRefreshing(false);
   }, []);
 
+  const attributesMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof getCocktailAttributes>>();
+    allCocktails.forEach((c) => map.set(c.idDrink, getCocktailAttributes(c)));
+    return map;
+  }, [allCocktails]);
+
   const filteredData = useMemo(() => {
     let data = allCocktails;
 
@@ -94,8 +136,22 @@ export default function CocktailsScreen() {
       );
     }
 
+    if (!isDefaultAttrFilter(attrFilter)) {
+      data = data.filter((c) => {
+        const attrs = attributesMap.get(c.idDrink);
+        if (!attrs) return true;
+        return (
+          attrs.alcoholLevel >= attrFilter.alcoholMin &&
+          attrs.sweetness >= attrFilter.sweetnessMin &&
+          attrs.sourness >= attrFilter.sournessMin &&
+          attrs.bitterness >= attrFilter.bitternessMin &&
+          attrs.calories <= attrFilter.caloriesMax
+        );
+      });
+    }
+
     return data.sort((a, b) => a.strDrink.localeCompare(b.strDrink));
-  }, [allCocktails, query, filter]);
+  }, [allCocktails, query, filter, attrFilter, attributesMap]);
 
   const favoritesFiltered = useMemo(() => {
     if (!query.trim()) return [...favorites].sort((a, b) => a.strDrink.localeCompare(b.strDrink));
@@ -200,12 +256,126 @@ export default function CocktailsScreen() {
             returnKeyType="search"
             autoCorrect={false}
           />
+          <Pressable
+            onPress={toggleFilterPanel}
+            hitSlop={8}
+            style={[
+              styles.filterBarBtn,
+              { backgroundColor: showFilterModal || !isDefaultAttrFilter(attrFilter) ? theme.accent + '25' : theme.surfaceSecondary, borderColor: theme.border },
+            ]}
+          >
+            <Ionicons name="filter" size={20} color={showFilterModal || !isDefaultAttrFilter(attrFilter) ? theme.accent : theme.text} />
+          </Pressable>
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={theme.textTertiary} />
             </Pressable>
           )}
         </View>
+
+        <Animated.View style={[styles.filterPanelWrap, filterPanelAnimatedStyle]}>
+          <View style={[styles.filterPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.filterPanelHeader}>
+              <Text style={[styles.filterPanelTitle, { color: theme.text }]}>Filters</Text>
+              <Pressable onPress={() => setAttrFilter(DEFAULT_ATTR_FILTER)} hitSlop={8}>
+                <Text style={[styles.filterPanelReset, { color: theme.accent }]}>Reset</Text>
+              </Pressable>
+            </View>
+            <View style={styles.filterPanelSliders}>
+              <View style={styles.sliderBlock}>
+                <Text style={[styles.sliderLabel, { color: theme.text }]}>Min. alcohol level</Text>
+                <View style={styles.sliderRow}>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    step={5}
+                    value={attrFilter.alcoholMin}
+                    onValueChange={(v) => setAttrFilter((f) => ({ ...f, alcoholMin: v }))}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={theme.accent}
+                  />
+                  <Text style={[styles.sliderValue, { color: theme.textSecondary }]}>{Math.round(attrFilter.alcoholMin)}%</Text>
+                </View>
+              </View>
+              <View style={styles.sliderBlock}>
+                <Text style={[styles.sliderLabel, { color: theme.text }]}>Min. sweetness</Text>
+                <View style={styles.sliderRow}>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    step={5}
+                    value={attrFilter.sweetnessMin}
+                    onValueChange={(v) => setAttrFilter((f) => ({ ...f, sweetnessMin: v }))}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={theme.accent}
+                  />
+                  <Text style={[styles.sliderValue, { color: theme.textSecondary }]}>{Math.round(attrFilter.sweetnessMin)}</Text>
+                </View>
+              </View>
+              <View style={styles.sliderBlock}>
+                <Text style={[styles.sliderLabel, { color: theme.text }]}>Min. sourness</Text>
+                <View style={styles.sliderRow}>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    step={5}
+                    value={attrFilter.sournessMin}
+                    onValueChange={(v) => setAttrFilter((f) => ({ ...f, sournessMin: v }))}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={theme.accent}
+                  />
+                  <Text style={[styles.sliderValue, { color: theme.textSecondary }]}>{Math.round(attrFilter.sournessMin)}</Text>
+                </View>
+              </View>
+              <View style={styles.sliderBlock}>
+                <Text style={[styles.sliderLabel, { color: theme.text }]}>Min. bitterness</Text>
+                <View style={styles.sliderRow}>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    step={5}
+                    value={attrFilter.bitternessMin}
+                    onValueChange={(v) => setAttrFilter((f) => ({ ...f, bitternessMin: v }))}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={theme.accent}
+                  />
+                  <Text style={[styles.sliderValue, { color: theme.textSecondary }]}>{Math.round(attrFilter.bitternessMin)}</Text>
+                </View>
+              </View>
+              <View style={styles.sliderBlock}>
+                <Text style={[styles.sliderLabel, { color: theme.text }]}>Max. calories</Text>
+                <View style={styles.sliderRow}>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={50}
+                    maximumValue={500}
+                    step={10}
+                    value={attrFilter.caloriesMax}
+                    onValueChange={(v) => setAttrFilter((f) => ({ ...f, caloriesMax: v }))}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={theme.accent}
+                  />
+                  <Text style={[styles.sliderValue, { color: theme.textSecondary }]}>{Math.round(attrFilter.caloriesMax)} kcal</Text>
+                </View>
+              </View>
+            </View>
+            <Pressable
+              onPress={toggleFilterPanel}
+              style={[styles.filterPanelDone, { backgroundColor: theme.accent }]}
+            >
+              <Text style={styles.filterPanelDoneText}>Done</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
 
         <Pressable
           onPress={() => router.push('/ingredient-search')}
@@ -338,6 +508,14 @@ const styles = StyleSheet.create({
     ...typography.body,
     padding: 0,
   },
+  filterBarBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   ingredientButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -423,4 +601,36 @@ const styles = StyleSheet.create({
     height: 0.5,
     marginLeft: spacing.lg + 50 + spacing.md,
   },
+  filterPanelWrap: {
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  filterPanel: {
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+  },
+  filterPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  filterPanelTitle: { ...typography.h3 },
+  filterPanelReset: { ...typography.bodyBold },
+  filterPanelSliders: {},
+  filterPanelDone: {
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  filterPanelDoneText: { ...typography.button, color: '#FFF' },
+  sliderBlock: { marginBottom: spacing.lg },
+  sliderLabel: { ...typography.bodyBold, marginBottom: spacing.xs },
+  sliderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  slider: { flex: 1, height: 32 },
+  sliderValue: { ...typography.captionBold, minWidth: 56, textAlign: 'right' },
 });

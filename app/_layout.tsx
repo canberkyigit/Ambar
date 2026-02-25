@@ -43,6 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="collections" />
         <Stack.Screen name="collection/[id]" />
         <Stack.Screen name="unit-converter" />
+        <Stack.Screen name="shopping-list" />
         <Stack.Screen name="achievements" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="user/[username]" />
