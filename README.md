@@ -88,7 +88,7 @@ npm run android
 
 MIT (or your chosen license).
 
-## Screen Shoots
+## Screenshoots
 
 <img width="1290" height="2796" alt="Simulator Screenshot - iPhone 15 Pro Max - 2026-02-25 at 13 15 10" src="https://github.com/user-attachments/assets/225bdbf0-1ae7-405b-a5f1-3d5766682f72" />
 <img width="1290" height="2796" alt="Simulator Screenshot - iPhone 15 Pro Max - 2026-02-25 at 13 14 55" src="https://github.com/user-attachments/assets/d14f6be8-ad26-4144-9855-500da1b5966f" />
