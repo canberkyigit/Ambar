@@ -15,13 +15,14 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useJournalStore } from '../../src/stores/useJournalStore';
 import { useAchievementStore } from '../../src/stores/useAchievementStore';
 import { cocktailService } from '../../src/services/cocktailService';
-import { typography, spacing, borderRadius } from '../../src/theme';
+import { Button, IconButton, NavHeader, PressableScale, SearchField } from '../../src/components/ui';
+import { typography, spacing, borderRadius, GUTTER } from '../../src/theme';
+import { haptics } from '../../src/utils/haptics';
 import { useDebounce } from '../../src/hooks/useDebounce';
 import type { Cocktail } from '../../src/types/cocktail';
 
@@ -61,7 +62,7 @@ export default function AddJournalEntryScreen() {
 
   useEffect(() => {
     handleSearch();
-  }, [debouncedQuery]);
+  }, [handleSearch]);
 
   const handleSelectCocktail = useCallback((cocktail: Cocktail) => {
     setSelectedCocktail(cocktail);
@@ -83,11 +84,11 @@ export default function AddJournalEntryScreen() {
 
   const handleSave = useCallback(() => {
     if (!selectedCocktail) {
-      Alert.alert('Select a Cocktail', 'Please search and select a cocktail first.');
+      Alert.alert('Select a cocktail', 'Please search and select a cocktail first.');
       return;
     }
     if (rating === 0) {
-      Alert.alert('Add a Rating', 'Please tap a star to rate this cocktail.');
+      Alert.alert('Add a rating', 'Please tap a star to rate this cocktail.');
       return;
     }
 
@@ -107,350 +108,227 @@ export default function AddJournalEntryScreen() {
   }, [selectedCocktail, rating, notes, photo, addEntry, increment, router]);
 
   const canSave = selectedCocktail && rating > 0;
+  const labelStyle = [styles.label, { color: theme.textSecondary }];
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View
-        style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="close" size={28} color={theme.text} />
-          </Pressable>
-          <Text style={[styles.title, { color: theme.text }]}>New Entry</Text>
-          <Pressable
-            onPress={handleSave}
-            disabled={!canSave || saving}
-            hitSlop={12}
-          >
-            <Text
-              style={[
-                styles.saveButton,
-                { color: canSave ? theme.accent : theme.textTertiary },
-              ]}
-            >
-              Save
-            </Text>
-          </Pressable>
-        </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader title="New entry" modal />
 
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {!selectedCocktail ? (
-            <Animated.View entering={FadeInDown.springify()}>
-              <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-                Search Cocktail
-              </Text>
-              <View
-                style={[
-                  styles.searchContainer,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <Ionicons name="search" size={20} color={theme.textTertiary} />
-                <TextInput
-                  style={[styles.searchInput, { color: theme.text }]}
-                  placeholder="Type a cocktail name..."
-                  placeholderTextColor={theme.textTertiary}
-                  value={searchQuery}
-                  onChangeText={(text) => {
-                    setSearchQuery(text);
-                  }}
-                  onSubmitEditing={handleSearch}
-                  autoFocus
-                  returnKeyType="search"
-                />
-                {searching && (
-                  <ActivityIndicator size="small" color={theme.accent} />
-                )}
-              </View>
+            <>
+              <Text style={labelStyle}>Cocktail</Text>
+              <SearchField
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search for a cocktail"
+                onSubmitEditing={handleSearch}
+                autoFocus
+              />
 
-              {searchResults.map((cocktail, index) => (
-                <Animated.View
-                  key={cocktail.idDrink}
-                  entering={FadeInDown.delay(index * 60).springify()}
-                >
-                  <Pressable
-                    onPress={() => handleSelectCocktail(cocktail)}
-                    style={({ pressed }) => [
-                      styles.resultItem,
-                      {
-                        backgroundColor: pressed
-                          ? theme.surfaceSecondary
-                          : theme.surface,
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={{ uri: `${cocktail.strDrinkThumb}/preview` }}
-                      style={styles.resultThumb}
-                    />
-                    <View style={styles.resultInfo}>
-                      <Text style={[styles.resultName, { color: theme.text }]}>
-                        {cocktail.strDrink}
-                      </Text>
-                      <Text style={[styles.resultCategory, { color: theme.textSecondary }]}>
-                        {cocktail.strCategory}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={24}
-                      color={theme.accent}
-                    />
-                  </Pressable>
-                </Animated.View>
-              ))}
-            </Animated.View>
+              {searching && searchResults.length === 0 ? (
+                <ActivityIndicator style={styles.loading} color={theme.textSecondary} />
+              ) : searchResults.length > 0 ? (
+                <View style={[styles.card, styles.results, { backgroundColor: theme.surface }]}>
+                  {searchResults.map((cocktail, index) => (
+                    <Pressable
+                      key={cocktail.idDrink}
+                      onPress={() => handleSelectCocktail(cocktail)}
+                      accessibilityRole="button"
+                      style={({ pressed }) => [
+                        styles.resultItem,
+                        index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.separator },
+                        pressed && { backgroundColor: theme.surfaceSecondary },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: `${cocktail.strDrinkThumb}/preview` }}
+                        style={[styles.resultThumb, { backgroundColor: theme.surfaceSecondary }]}
+                      />
+                      <View style={styles.flex}>
+                        <Text style={[typography.bodyBold, { color: theme.text }]} numberOfLines={1}>
+                          {cocktail.strDrink}
+                        </Text>
+                        <Text style={[typography.caption, { color: theme.textSecondary }]} numberOfLines={1}>
+                          {cocktail.strCategory}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </>
           ) : (
             <>
-              <Animated.View entering={FadeInDown.springify()}>
-                <View
-                  style={[styles.selectedCard, { backgroundColor: theme.surface }]}
-                >
-                  <Image
-                    source={{ uri: `${selectedCocktail.strDrinkThumb}/preview` }}
-                    style={styles.selectedImage}
-                  />
-                  <View style={styles.selectedInfo}>
-                    <Text style={[styles.selectedName, { color: theme.text }]}>
-                      {selectedCocktail.strDrink}
-                    </Text>
-                    <Text
-                      style={[styles.selectedCategory, { color: theme.textSecondary }]}
-                    >
-                      {selectedCocktail.strCategory}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => setSelectedCocktail(null)}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="close-circle" size={24} color={theme.textTertiary} />
-                  </Pressable>
+              <Text style={labelStyle}>Cocktail</Text>
+              <View style={[styles.card, styles.selectedCard, { backgroundColor: theme.surface }]}>
+                <Image
+                  source={{ uri: `${selectedCocktail.strDrinkThumb}/preview` }}
+                  style={[styles.selectedImage, { backgroundColor: theme.surfaceSecondary }]}
+                />
+                <View style={styles.flex}>
+                  <Text style={[typography.h3, { color: theme.text }]} numberOfLines={1}>
+                    {selectedCocktail.strDrink}
+                  </Text>
+                  <Text style={[typography.caption, { color: theme.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                    {selectedCocktail.strCategory}
+                  </Text>
                 </View>
-              </Animated.View>
+                <Button title="Change" variant="ghost" size="sm" onPress={() => setSelectedCocktail(null)} />
+              </View>
 
-              <Animated.View entering={FadeInDown.delay(100).springify()}>
-                <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-                  Your Rating
-                </Text>
-                <View style={styles.ratingRow}>
+              <View style={styles.field}>
+                <Text style={labelStyle}>Your rating</Text>
+                <View style={[styles.card, styles.ratingRow, { backgroundColor: theme.surface }]}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Pressable
                       key={star}
-                      onPress={() => setRating(star)}
+                      onPress={() => {
+                        haptics.selection();
+                        setRating(star);
+                      }}
                       hitSlop={4}
+                      style={styles.starButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${star} ${star === 1 ? 'star' : 'stars'}`}
+                      accessibilityState={{ selected: star <= rating }}
                     >
                       <Ionicons
                         name={star <= rating ? 'star' : 'star-outline'}
-                        size={40}
-                        color={star <= rating ? '#F59E0B' : theme.textTertiary}
+                        size={34}
+                        color={star <= rating ? theme.star : theme.textTertiary}
                       />
                     </Pressable>
                   ))}
                 </View>
-              </Animated.View>
+              </View>
 
-              <Animated.View entering={FadeInDown.delay(200).springify()}>
-                <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-                  Tasting Notes
-                </Text>
+              <View style={styles.field}>
+                <Text style={labelStyle}>Tasting notes</Text>
                 <TextInput
-                  style={[
-                    styles.notesInput,
-                    {
-                      backgroundColor: theme.surface,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
+                  style={[styles.input, styles.textArea, { backgroundColor: theme.surfaceSecondary, color: theme.text }]}
                   placeholder="How did it taste? What did you enjoy?"
                   placeholderTextColor={theme.textTertiary}
+                  selectionColor={theme.accent}
                   value={notes}
                   onChangeText={setNotes}
                   multiline
-                  numberOfLines={4}
                   textAlignVertical="top"
                 />
-              </Animated.View>
+              </View>
 
-              <Animated.View entering={FadeInDown.delay(300).springify()}>
-                <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-                  Photo (Optional)
-                </Text>
+              <View style={styles.field}>
+                <Text style={labelStyle}>Photo (optional)</Text>
                 {photo ? (
                   <View style={styles.photoContainer}>
                     <Image source={{ uri: photo }} style={styles.photoPreview} />
-                    <Pressable
+                    <IconButton
+                      icon="close"
+                      variant="scrim"
+                      size={30}
                       onPress={() => setPhoto(null)}
-                      style={[styles.removePhoto, { backgroundColor: theme.error }]}
-                    >
-                      <Ionicons name="close" size={16} color="#FFFFFF" />
-                    </Pressable>
+                      accessibilityLabel="Remove photo"
+                      style={styles.removePhoto}
+                    />
                   </View>
                 ) : (
-                  <Pressable
+                  <PressableScale
                     onPress={handlePickPhoto}
-                    style={[
-                      styles.photoButton,
-                      {
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                      },
-                    ]}
+                    accessibilityRole="button"
+                    style={[styles.photoButton, { backgroundColor: theme.surfaceSecondary }]}
                   >
-                    <Ionicons name="camera-outline" size={32} color={theme.textTertiary} />
-                    <Text style={[styles.photoButtonText, { color: theme.textSecondary }]}>
-                      Add a photo
-                    </Text>
-                  </Pressable>
+                    <Ionicons name="camera-outline" size={24} color={theme.textSecondary} />
+                    <Text style={[typography.captionBold, { color: theme.textSecondary }]}>Add photo</Text>
+                  </PressableScale>
                 )}
-              </Animated.View>
+              </View>
             </>
           )}
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+
+        {selectedCocktail && (
+          <View
+            style={[
+              styles.bottomBar,
+              {
+                paddingBottom: Math.max(insets.bottom, spacing.lg),
+                backgroundColor: theme.background,
+                borderTopColor: theme.separator,
+              },
+            ]}
+          >
+            <Button
+              title={rating > 0 ? 'Save entry' : 'Rate to save'}
+              size="lg"
+              fullWidth
+              onPress={handleSave}
+              disabled={!canSave || saving}
+            />
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  title: {
-    ...typography.h2,
-  },
-  saveButton: {
-    ...typography.button,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 60,
-  },
-  sectionLabel: {
-    ...typography.captionBold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: spacing.sm,
-    marginTop: spacing.xl,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
-    padding: 0,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
+  scrollContent: { paddingHorizontal: GUTTER, paddingTop: spacing.sm, paddingBottom: spacing['2xl'] },
+  field: { marginTop: spacing.xl },
+  label: { ...typography.captionBold, marginBottom: spacing.sm },
+  card: { borderRadius: borderRadius.lg, overflow: 'hidden' },
+  loading: { marginTop: spacing['2xl'] },
+  results: { marginTop: spacing.md },
   resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
     gap: spacing.md,
   },
-  resultThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.sm,
-  },
-  resultInfo: {
-    flex: 1,
-  },
-  resultName: {
-    ...typography.bodyBold,
-  },
-  resultCategory: {
-    ...typography.caption,
-    marginTop: 2,
-  },
+  resultThumb: { width: 44, height: 44, borderRadius: borderRadius.sm },
   selectedCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    borderRadius: borderRadius.lg,
     gap: spacing.md,
-    marginTop: spacing.md,
   },
-  selectedImage: {
-    width: 56,
-    height: 56,
-    borderRadius: borderRadius.md,
-  },
-  selectedInfo: {
-    flex: 1,
-  },
-  selectedName: {
-    ...typography.h3,
-  },
-  selectedCategory: {
-    ...typography.caption,
-    marginTop: 2,
-  },
+  selectedImage: { width: 56, height: 56, borderRadius: borderRadius.md },
   ratingRow: {
     flexDirection: 'row',
-    gap: spacing.md,
     justifyContent: 'center',
+    gap: spacing.sm,
     paddingVertical: spacing.md,
   },
-  notesInput: {
+  starButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  input: {
     ...typography.body,
+    paddingHorizontal: spacing.md + 2,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
-    padding: spacing.lg,
-    minHeight: 120,
   },
-  photoContainer: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-  },
-  photoPreview: {
-    width: 120,
-    height: 120,
-    borderRadius: borderRadius.lg,
-  },
-  removePhoto: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  textArea: { minHeight: 120, paddingTop: spacing.md, paddingBottom: spacing.md },
+  photoContainer: { alignSelf: 'flex-start' },
+  photoPreview: { width: 120, height: 120, borderRadius: borderRadius.lg },
+  removePhoto: { position: 'absolute', top: spacing.xs + 2, right: spacing.xs + 2 },
   photoButton: {
+    height: 96,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing['2xl'],
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  photoButtonText: {
-    ...typography.caption,
+  bottomBar: {
+    paddingHorizontal: GUTTER,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

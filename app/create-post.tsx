@@ -3,25 +3,24 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable,
   Image,
   TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter , useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useSocialStore } from '../src/stores/useSocialStore';
 import { useCocktailPickerStore } from '../src/stores/useCocktailPickerStore';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { NavHeader, Button, IconButton, PressableScale } from '../src/components/ui';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 
+// Avatar colours for the generated post author — data, not theme.
 const AVATAR_COLORS = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
 
 export default function CreatePostScreen() {
@@ -81,136 +80,103 @@ export default function CreatePostScreen() {
     }
   }, [imageUri, caption, cocktailName, cocktailId, addPost, router]);
 
-  const canShare = Boolean(imageUri) && !isSharing;
+  const inputBase = { color: theme.text, backgroundColor: theme.surfaceSecondary };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header - Instagram style */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm, borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
-          <Text style={[styles.cancelText, { color: theme.text }]}>Cancel</Text>
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>New Post</Text>
-        <Pressable
-          onPress={handleShare}
-          disabled={!canShare}
-          hitSlop={12}
-          style={[styles.headerBtn, styles.headerBtnRight]}
-        >
-          {isSharing ? (
-            <ActivityIndicator size="small" color={theme.accent} />
-          ) : (
-            <Text
-              style={[
-                styles.shareText,
-                { color: canShare ? theme.accent : theme.textTertiary },
-              ]}
-            >
-              Share
-            </Text>
-          )}
-        </Pressable>
-      </View>
+      <NavHeader title="New post" modal />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing['2xl'] }]}
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {!imageUri ? (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.pickerWrap}>
-              <Pressable
+            <Animated.View entering={FadeIn.duration(200)}>
+              <PressableScale
                 onPress={pickImage}
-                style={({ pressed }) => [
-                  styles.pickerArea,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Select photo"
+                style={[styles.pickerArea, { backgroundColor: theme.surface }]}
               >
-                <View style={[styles.pickerIconWrap, { backgroundColor: theme.accent + '18' }]}>
-                  <Ionicons name="images-outline" size={48} color={theme.accent} />
+                <View style={[styles.pickerIconWrap, { backgroundColor: theme.accentLight }]}>
+                  <Ionicons name="images-outline" size={34} color={theme.accent} />
                 </View>
-                <Text style={[styles.pickerTitle, { color: theme.text }]}>Select photo</Text>
+                <Text style={[styles.pickerTitle, { color: theme.text }]}>Select a photo</Text>
                 <Text style={[styles.pickerHint, { color: theme.textSecondary }]}>
-                  Add a photo to share
+                  Pick a square shot of your drink from your library
                 </Text>
-              </Pressable>
+              </PressableScale>
             </Animated.View>
           ) : (
-            <Animated.View entering={FadeInDown.duration(250).springify()} style={styles.form}>
-              <View style={styles.previewRow}>
-                <Image source={{ uri: imageUri }} style={styles.previewImage} />
-                <View style={styles.fieldsColumn}>
+            <Animated.View entering={FadeIn.duration(200)} style={styles.form}>
+              <View>
+                <Image source={{ uri: imageUri }} style={[styles.previewImage, { backgroundColor: theme.surfaceSecondary }]} />
+                <IconButton
+                  icon="camera-outline"
+                  variant="scrim"
+                  size={38}
+                  onPress={pickImage}
+                  accessibilityLabel="Change photo"
+                  style={styles.changePhotoBtn}
+                />
+              </View>
+
+              <View>
+                <Text style={[typography.overline, styles.label, { color: theme.textSecondary }]}>Caption</Text>
+                <TextInput
+                  style={[styles.input, styles.captionInput, inputBase]}
+                  placeholder="Write a caption…"
+                  placeholderTextColor={theme.textTertiary}
+                  selectionColor={theme.accent}
+                  value={caption}
+                  onChangeText={setCaption}
+                  multiline
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <View>
+                <Text style={[typography.overline, styles.label, { color: theme.textSecondary }]}>Cocktail</Text>
+                <View style={styles.cocktailRow}>
                   <TextInput
-                    style={[
-                      styles.captionInput,
-                      {
-                        color: theme.text,
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                    placeholder="Write a caption..."
+                    style={[styles.input, styles.cocktailInput, inputBase]}
+                    placeholder="Name (optional)"
                     placeholderTextColor={theme.textTertiary}
-                    value={caption}
-                    onChangeText={setCaption}
-                    multiline
-                    maxLength={500}
-                    textAlignVertical="top"
+                    selectionColor={theme.accent}
+                    value={cocktailName}
+                    onChangeText={setCocktailName}
                   />
-                  <View style={styles.cocktailRow}>
-                    <TextInput
-                      style={[
-                        styles.cocktailInput,
-                        {
-                          color: theme.text,
-                          backgroundColor: theme.surface,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                      placeholder="Cocktail name (optional)"
-                      placeholderTextColor={theme.textTertiary}
-                      value={cocktailName}
-                      onChangeText={setCocktailName}
-                    />
-                    <Pressable
-                      onPress={() => router.push('/pick-cocktail')}
-                      style={({ pressed }) => [
-                        styles.selectCocktailBtn,
-                        {
-                          backgroundColor: theme.accent + '18',
-                          borderColor: theme.accent,
-                          opacity: pressed ? 0.8 : 1,
-                        },
-                      ]}
-                    >
-                      <Ionicons name="wine-outline" size={18} color={theme.accent} />
-                      <Text style={[styles.selectCocktailBtnText, { color: theme.accent }]}>
-                        Select cocktail
-                      </Text>
-                    </Pressable>
-                  </View>
+                  <Button
+                    title="Choose"
+                    icon="wine-outline"
+                    variant="tinted"
+                    onPress={() => router.push('/pick-cocktail')}
+                  />
                 </View>
               </View>
-              <Pressable
-                onPress={pickImage}
-                style={[styles.changePhotoBtn, { borderColor: theme.border }]}
-              >
-                <Ionicons name="camera-outline" size={18} color={theme.accent} />
-                <Text style={[styles.changePhotoText, { color: theme.accent }]}>Change photo</Text>
-              </Pressable>
             </Animated.View>
           )}
         </ScrollView>
+
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: Math.max(insets.bottom, spacing.lg), borderTopColor: theme.separator },
+          ]}
+        >
+          <Button
+            title="Share"
+            size="lg"
+            fullWidth
+            loading={isSharing}
+            disabled={!imageUri}
+            onPress={handleShare}
+          />
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -219,96 +185,51 @@ export default function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, paddingTop: spacing.xl },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerBtn: { minWidth: 64, alignItems: 'flex-start' },
-  headerBtnRight: { alignItems: 'flex-end' },
-  headerTitle: {
-    ...typography.h3,
-  },
-  cancelText: { ...typography.body },
-  shareText: { ...typography.bodyBold },
-  pickerWrap: { flex: 1, justifyContent: 'center', paddingVertical: spacing['4xl'] },
+  scrollContent: { paddingHorizontal: GUTTER, paddingTop: spacing.md, paddingBottom: spacing['2xl'] },
   pickerArea: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing['4xl'],
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing['5xl'],
     paddingHorizontal: spacing['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   pickerIconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
   pickerTitle: { ...typography.h3, marginBottom: spacing.xs },
-  pickerHint: { ...typography.caption },
-  form: { gap: spacing.lg },
-  previewRow: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-    alignItems: 'flex-start',
-  },
+  pickerHint: { ...typography.caption, textAlign: 'center' },
+  form: { gap: spacing.xl },
   previewImage: {
-    width: 120,
-    height: 120,
-    borderRadius: borderRadius.md,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: borderRadius.lg,
   },
-  fieldsColumn: { flex: 1, gap: spacing.md },
-  captionInput: {
+  changePhotoBtn: { position: 'absolute', right: spacing.md, bottom: spacing.md },
+  label: { marginBottom: spacing.sm, marginLeft: spacing.xs },
+  input: {
     ...typography.body,
-    borderWidth: 1,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 80,
+  },
+  captionInput: {
+    minHeight: 96,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
   },
   cocktailRow: {
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center',
   },
-  cocktailInput: {
-    ...typography.body,
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  cocktailInput: { flex: 1, height: 46 },
+  bottomBar: {
+    paddingHorizontal: GUTTER,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  selectCocktailBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-  },
-  selectCocktailBtnText: {
-    ...typography.captionBold,
-  },
-  changePhotoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-  },
-  changePhotoText: { ...typography.captionBold },
 });

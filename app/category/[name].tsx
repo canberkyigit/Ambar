@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { View, FlatList, StyleSheet, Dimensions } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../../src/stores/useThemeStore';
+import { useAchievementStore } from '../../src/stores/useAchievementStore';
 import { cocktailService } from '../../src/services/cocktailService';
 import { CocktailCard } from '../../src/components/cocktail/CocktailCard';
-import { typography, spacing } from '../../src/theme';
+import { CocktailCardSkeleton } from '../../src/components/ui/Skeleton';
+import { EmptyState } from '../../src/components/shared/EmptyState';
+import { NavHeader } from '../../src/components/ui';
+import { spacing, GUTTER } from '../../src/theme';
 import type { CocktailSummary } from '../../src/types/cocktail';
+
+const CELL_WIDTH = (Dimensions.get('window').width - GUTTER * 2 - spacing.md) / 2;
 
 export default function CategoryScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeStore();
 
@@ -27,6 +23,11 @@ export default function CategoryScreen() {
   const [loading, setLoading] = useState(true);
 
   const decodedName = decodeURIComponent(name || '');
+  const markUnique = useAchievementStore((s) => s.markUnique);
+
+  useEffect(() => {
+    if (decodedName) markUnique('explorer', decodedName);
+  }, [decodedName, markUnique]);
 
   useEffect(() => {
     if (decodedName) {
@@ -38,35 +39,33 @@ export default function CategoryScreen() {
   }, [decodedName]);
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.background, paddingTop: insets.top },
-      ]}
-    >
-      <Animated.View entering={FadeInDown.springify()} style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-          {decodedName}
-        </Text>
-        <View style={{ width: 28 }} />
-      </Animated.View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader title={decodedName} />
 
       {loading ? (
-        <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
+        <View style={styles.skeletonGrid}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View key={i} style={styles.skeletonCell}>
+              <CocktailCardSkeleton />
+            </View>
+          ))}
+        </View>
       ) : (
         <FlatList
           data={cocktails}
           numColumns={2}
           keyExtractor={(item) => item.idDrink}
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={{ gap: spacing.md }}
+          contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + spacing['2xl'] }]}
+          columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <CocktailCard cocktail={item} index={index} />
-          )}
+          renderItem={({ item }) => <CocktailCard cocktail={item} />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="wine-outline"
+              title="No cocktails here"
+              subtitle="Check your connection, or browse another category from Explore."
+            />
+          }
         />
       )}
     </View>
@@ -74,25 +73,15 @@ export default function CategoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
+  container: { flex: 1 },
+  grid: { paddingHorizontal: GUTTER, paddingTop: spacing.sm, flexGrow: 1 },
+  row: { gap: spacing.md },
+  skeletonGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    flexWrap: 'wrap',
+    columnGap: spacing.md,
+    paddingHorizontal: GUTTER,
+    paddingTop: spacing.sm,
   },
-  title: {
-    ...typography.h2,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: spacing.md,
-  },
-  grid: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 40,
-    paddingTop: spacing.md,
-  },
+  skeletonCell: { width: CELL_WIDTH },
 });

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CocktailApp",
+    "name": "Ambar",
     "slug": "CocktailApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D0B1E"
+      "backgroundColor": "#0D0C0A"
     },
     "ios": {
       "supportsTablet": true,
@@ -20,7 +20,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0D0B1E"
+        "backgroundColor": "#0D0C0A"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.cocktailapp"
@@ -32,7 +32,6 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-sensors",
       [
         "expo-location",
         {

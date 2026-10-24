@@ -18,6 +18,11 @@ const CHALLENGE_POOL = [
   { title: 'Island Breeze', description: 'Escape to the islands', cocktailName: 'Blue Lagoon' },
 ];
 
+/** "Piña Colada " and "pina colada" should match. */
+function normalizeName(name: string): string {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+}
+
 function getWeekStart(): number {
   const now = new Date();
   const day = now.getDay();
@@ -30,6 +35,8 @@ interface ChallengeState {
   completedCount: number;
   ensureCurrentChallenge: () => void;
   completeChallenge: () => void;
+  /** Completes this week's challenge if `cocktailName` is its cocktail. Returns true when it did. */
+  completeIfMatches: (cocktailName: string) => boolean;
 }
 
 export const useChallengeStore = create<ChallengeState>()(
@@ -55,10 +62,21 @@ export const useChallengeStore = create<ChallengeState>()(
         });
       },
       completeChallenge: () =>
-        set((state) => ({
-          current: state.current ? { ...state.current, completed: true } : null,
-          completedCount: state.completedCount + 1,
-        })),
+        set((state) =>
+          !state.current || state.current.completed
+            ? state
+            : {
+                current: { ...state.current, completed: true },
+                completedCount: state.completedCount + 1,
+              },
+        ),
+      completeIfMatches: (cocktailName) => {
+        const { current, completeChallenge } = get();
+        if (!current || current.completed) return false;
+        if (normalizeName(current.cocktailName) !== normalizeName(cocktailName)) return false;
+        completeChallenge();
+        return true;
+      },
     }),
     {
       name: 'challenge-storage',

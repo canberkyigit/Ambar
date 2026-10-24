@@ -7,7 +7,8 @@ import {
   TextInput,
   ScrollView,
   Image,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useUserProfileStore } from '../src/stores/useUserProfileStore';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { NavHeader, Button } from '../src/components/ui';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
+
+const AVATAR_SIZE = 96;
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -48,88 +52,101 @@ export default function EditProfileScreen() {
     router.back();
   }, [name, bioText, updateProfile, router]);
 
+  const inputStyle = [styles.input, { color: theme.text, backgroundColor: theme.surfaceSecondary }];
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={[styles.cancelText, { color: theme.text }]}>Cancel</Text>
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Edit profile</Text>
-        <Pressable onPress={saving ? undefined : save} hitSlop={12}>
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.accent} />
-          ) : (
-            <Text style={[styles.doneText, { color: theme.accent }]}>Done</Text>
-          )}
-        </Pressable>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader title="Edit profile" modal />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
-        <Pressable onPress={pickImage} style={styles.avatarSection}>
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
-              <Ionicons name="person" size={48} color={theme.textTertiary} />
-            </View>
-          )}
-          <Text style={[styles.changePhotoText, { color: theme.accent }]}>Change photo</Text>
-        </Pressable>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Pressable
+            onPress={pickImage}
+            style={styles.avatarSection}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.surfaceSecondary }]}>
+                <Ionicons name="person" size={44} color={theme.textTertiary} />
+              </View>
+            )}
+            <Text style={[styles.changePhotoText, { color: theme.accent }]}>Change photo</Text>
+          </Pressable>
 
-        <View style={[styles.field, { borderBottomColor: theme.border }]}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>Name</Text>
-          <TextInput
-            style={[styles.input, { color: theme.text }]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Your name"
-            placeholderTextColor={theme.textTertiary}
-            autoCapitalize="words"
-          />
+          <View style={styles.field}>
+            <Text style={[typography.overline, styles.label, { color: theme.textSecondary }]}>Name</Text>
+            <TextInput
+              style={inputStyle}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor={theme.textTertiary}
+              selectionColor={theme.accent}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={[typography.overline, styles.label, { color: theme.textSecondary }]}>Bio</Text>
+            <TextInput
+              style={[inputStyle, styles.bioInput]}
+              value={bioText}
+              onChangeText={setBioText}
+              placeholder="Tell people what you like to mix"
+              placeholderTextColor={theme.textTertiary}
+              selectionColor={theme.accent}
+              multiline
+              numberOfLines={4}
+            />
+          </View>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: Math.max(insets.bottom, spacing.lg), borderTopColor: theme.separator },
+          ]}
+        >
+          <Button title="Save" size="lg" fullWidth loading={saving} onPress={save} />
         </View>
-        <View style={[styles.field, { borderBottomColor: theme.border }]}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>Bio</Text>
-          <TextInput
-            style={[styles.input, styles.bioInput, { color: theme.text }]}
-            value={bioText}
-            onChangeText={setBioText}
-            placeholder="Tell us about yourself"
-            placeholderTextColor={theme.textTertiary}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-      </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  flex: { flex: 1 },
+  content: { paddingHorizontal: GUTTER, paddingTop: spacing.lg, paddingBottom: spacing['2xl'] },
+  avatarSection: { alignItems: 'center', alignSelf: 'center', marginBottom: spacing['2xl'] },
+  avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  changePhotoText: { ...typography.captionBold, marginTop: spacing.md },
+  field: { marginBottom: spacing.xl },
+  label: { marginBottom: spacing.sm, marginLeft: spacing.xs },
+  input: {
+    ...typography.body,
+    height: 46,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
   },
-  cancelText: { ...typography.body },
-  title: { ...typography.h3 },
-  doneText: { ...typography.bodyBold },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl },
-  avatarSection: { alignItems: 'center', marginBottom: spacing['2xl'] },
-  avatar: { width: 100, height: 100, borderRadius: 50 },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bioInput: {
+    height: undefined,
+    minHeight: 110,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    textAlignVertical: 'top',
   },
-  changePhotoText: { ...typography.captionBold, marginTop: spacing.sm },
-  field: { paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
-  label: { ...typography.small, marginBottom: spacing.xs },
-  input: { ...typography.body, padding: 0 },
-  bioInput: { minHeight: 80, textAlignVertical: 'top' },
+  bottomBar: {
+    paddingHorizontal: GUTTER,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
 });

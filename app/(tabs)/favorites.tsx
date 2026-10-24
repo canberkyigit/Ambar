@@ -4,21 +4,21 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useHeaderPadding } from '../../src/hooks/useHeaderPadding';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useBarsStore } from '../../src/stores/useBarsStore';
+import { useAchievementStore } from '../../src/stores/useAchievementStore';
 import { MOCK_BARS } from '../../src/data/bars';
 import { EmptyState } from '../../src/components/shared/EmptyState';
-import { typography, spacing, borderRadius } from '../../src/theme';
+import { ScreenHeader, SearchField, IconButton, Sheet, Button } from '../../src/components/ui';
+import { haptics } from '../../src/utils/haptics';
+import { typography, spacing, borderRadius, GUTTER, TAB_BAR_CLEARANCE } from '../../src/theme';
 import type { Bar } from '../../src/types/bar';
 
 /** Approximate distance in km between two lat/lng points (Haversine). */
@@ -42,7 +42,6 @@ function distanceKm(
 }
 
 export default function BarsScreen() {
-  const { paddingTop: headerPadding, insets } = useHeaderPadding();
   const router = useRouter();
   const { theme } = useThemeStore();
   const {
@@ -55,6 +54,7 @@ export default function BarsScreen() {
     setFilterCocktailName,
   } = useBarsStore();
 
+  const markUnique = useAchievementStore((s) => s.markUnique);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBar, setSelectedBar] = useState<Bar | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -130,333 +130,218 @@ export default function BarsScreen() {
     })();
   }, []);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: headerPadding }]}>
-      {/* Search */}
-      <View style={[styles.searchWrap, { paddingHorizontal: spacing.lg }]}>
-        <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Ionicons name="search" size={20} color={theme.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Bar, city, country or cocktail..."
-            placeholderTextColor={theme.textTertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={20} color={theme.textTertiary} />
-            </Pressable>
-          )}
-        </View>
-        <View style={styles.headerRow}>
-          <Text style={[styles.countText, { color: theme.textSecondary }]}>
-            {userLocation
-              ? `Nearby: ${filteredBars.length} bar${filteredBars.length !== 1 ? 's' : ''}`
-              : `${filteredBars.length} bar${filteredBars.length !== 1 ? 's' : ''}`}
-          </Text>
-          <Pressable
-            onPress={locationLoading ? undefined : requestLocation}
-            style={[styles.locationBtn, { backgroundColor: userLocation ? theme.accent + '20' : theme.surface, borderColor: theme.border }]}
-          >
-            {locationLoading ? (
-              <ActivityIndicator size="small" color={theme.accent} />
-            ) : (
-              <>
-                <Ionicons name="locate" size={18} color={theme.accent} />
-                <Text style={[styles.locationBtnText, { color: theme.accent }]}>
-                  {userLocation ? 'Nearby on' : 'Get location'}
-                </Text>
-              </>
-            )}
-          </Pressable>
-        </View>
-      </View>
+  const formatDistance = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km < 10 ? km.toFixed(1) : Math.round(km)} km`);
+  const selectedRating = selectedBar
+    ? getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount)
+    : null;
+  const myRating = selectedBar ? getRating(selectedBar.id) : null;
+  const selectedSaved = selectedBar ? isBarSaved(selectedBar.id) : false;
 
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
         style={styles.list}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: 120 },
-          filteredBars.length === 0 && styles.listContentEmpty,
-        ]}
+        contentContainerStyle={[styles.listContent, filteredBars.length === 0 && styles.listContentEmpty]}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
         }
       >
+        <ScreenHeader
+          title="Bars"
+          subtitle={userLocation ? 'Sorted by distance from you' : 'The world\'s best cocktail bars'}
+          right={
+            locationLoading ? (
+              <View style={styles.locating}>
+                <ActivityIndicator size="small" color={theme.accent} />
+              </View>
+            ) : (
+              <IconButton
+                icon={userLocation ? 'navigate' : 'navigate-outline'}
+                variant={userLocation ? 'tinted' : 'surface'}
+                onPress={requestLocation}
+                accessibilityLabel={userLocation ? 'Refresh location' : 'Sort by distance'}
+              />
+            )
+          }
+        />
+        <SearchField
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Bar, city or cocktail"
+          style={styles.search}
+        />
+
         {filteredBars.length === 0 ? (
           <EmptyState
-            icon="wine-outline"
+            icon="map-outline"
             title="No bars found"
-            subtitle="Try a different search or turn off location sorting"
+            subtitle="Try a city, a bar name or a cocktail like “Negroni”."
           />
         ) : (
-        filteredBars.map((bar) => {
-          const distKm = userLocation
-            ? distanceKm(userLocation.latitude, userLocation.longitude, bar.latitude, bar.longitude)
-            : null;
-          const { rating: avgRating, count: reviewCount } = getAverageRating(bar.id, bar.rating, bar.reviewCount);
-          return (
-            <Pressable
-              key={bar.id}
-              onPress={() => setSelectedBar(bar)}
-              style={({ pressed }) => [
-                styles.barCard,
-                { backgroundColor: theme.surface, opacity: pressed ? 0.9 : 1 },
-              ]}
-            >
-              <View style={[styles.barPin, { backgroundColor: theme.accent + '20' }]}>
-                <Ionicons name="location" size={20} color={theme.accent} />
-              </View>
-              <View style={styles.barInfo}>
-                <Text style={[styles.barName, { color: theme.text }]} numberOfLines={1}>
-                  {bar.name}
-                </Text>
-                <Text style={[styles.barPlace, { color: theme.textSecondary }]}>
-                  {bar.city}, {bar.country}
-                  {distKm !== null && (
-                    <Text style={[styles.barDistance, { color: theme.accent }]}>
-                      {' · '}
-                      {distKm < 1 ? `${Math.round(distKm * 1000)} m` : `${distKm.toFixed(1)} km`}
-                    </Text>
-                  )}
-                </Text>
-                <View style={styles.barMeta}>
-                  <Ionicons name="star" size={12} color="#F59E0B" />
-                  <Text style={[styles.barRating, { color: theme.text }]}>{avgRating.toFixed(1)}</Text>
-                  <Text style={[styles.barReviews, { color: theme.textTertiary }]}>
-                    {reviewCount} reviews
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
-            </Pressable>
-          );
-        })
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
+            {filteredBars.map((bar, i) => {
+              const distKm = userLocation
+                ? distanceKm(userLocation.latitude, userLocation.longitude, bar.latitude, bar.longitude)
+                : null;
+              const { rating: avgRating, count: reviewCount } = getAverageRating(bar.id, bar.rating, bar.reviewCount);
+              return (
+                <Pressable
+                  key={bar.id}
+                  onPress={() => {
+                    markUnique('world_traveler', bar.country);
+                    setSelectedBar(bar);
+                  }}
+                  style={({ pressed }) => [styles.barRow, pressed && { backgroundColor: theme.surfaceSecondary }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${bar.name}, ${bar.city}`}
+                >
+                  <View style={[styles.monogram, { backgroundColor: theme.accentLight }]}>
+                    <Text style={[styles.monogramText, { color: theme.accent }]}>{bar.name.charAt(0)}</Text>
+                  </View>
+                  <View style={[styles.barBody, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.separator }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[typography.bodyBold, { color: theme.text }]} numberOfLines={1}>
+                        {bar.name}
+                      </Text>
+                      <Text style={[typography.caption, { color: theme.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                        {bar.city}, {bar.country}
+                        {distKm !== null && ` · ${formatDistance(distKm)}`}
+                      </Text>
+                    </View>
+                    <View style={styles.ratingPill}>
+                      <Ionicons name="star" size={12} color={theme.star} />
+                      <Text style={[typography.captionBold, { color: theme.text }]}>{avgRating.toFixed(1)}</Text>
+                      <Text style={[typography.small, { color: theme.textTertiary }]}>({reviewCount})</Text>
+                    </View>
+                    {isBarSaved(bar.id) && <Ionicons name="bookmark" size={14} color={theme.accent} />}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
-      {/* Bar detail popup */}
-      <Modal
-        visible={!!selectedBar}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedBar(null)}
-      >
-        <Pressable
-          style={[styles.popupOverlay, { backgroundColor: theme.overlay }]}
-          onPress={() => setSelectedBar(null)}
-        >
-          <Pressable style={[styles.popupCard, { backgroundColor: theme.background }]} onPress={() => {}}>
-            {selectedBar && (
-              <>
-                <View style={styles.popupHeader}>
-                  <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
-                    {selectedBar.name}
-                  </Text>
+      <Sheet visible={!!selectedBar} onClose={() => setSelectedBar(null)} title={selectedBar?.name}>
+        {selectedBar && selectedRating && (
+          <>
+            <View style={styles.sheetMeta}>
+              <Ionicons name="star" size={14} color={theme.star} />
+              <Text style={[typography.bodyBold, { color: theme.text }]}>{selectedRating.rating.toFixed(1)}</Text>
+              <Text style={[typography.caption, { color: theme.textSecondary }]}>
+                {selectedRating.count.toLocaleString()} reviews
+              </Text>
+            </View>
+            <Text style={[typography.body, { color: theme.textSecondary, marginTop: spacing.xs }]}>
+              {selectedBar.address ? `${selectedBar.address}, ` : ''}
+              {selectedBar.city}, {selectedBar.country}
+            </Text>
+
+            <Button
+              title={selectedSaved ? 'Saved' : 'Save bar'}
+              icon={selectedSaved ? 'bookmark' : 'bookmark-outline'}
+              variant={selectedSaved ? 'tinted' : 'secondary'}
+              fullWidth
+              onPress={() => toggleSavedBar(selectedBar.id)}
+              style={{ marginTop: spacing.lg }}
+            />
+
+            <Text style={[typography.overline, styles.sheetLabel, { color: theme.textSecondary }]}>
+              {myRating ? 'Your rating' : 'Rate this bar'}
+            </Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => {
+                const filled = myRating != null && star <= myRating;
+                return (
                   <Pressable
-                    onPress={() => setSelectedBar(null)}
-                    hitSlop={8}
-                    style={[styles.popupCloseBtn, { backgroundColor: theme.surface }]}
+                    key={star}
+                    onPress={() => {
+                      haptics.selection();
+                      setRating(selectedBar.id, star);
+                    }}
+                    hitSlop={6}
+                    style={styles.starBtn}
+                    accessibilityLabel={`Rate ${star} star${star > 1 ? 's' : ''}`}
                   >
-                    <Ionicons name="close" size={22} color={theme.text} />
+                    <Ionicons name={filled ? 'star' : 'star-outline'} size={30} color={filled ? theme.star : theme.textTertiary} />
                   </Pressable>
-                </View>
-                <View style={styles.popupBody}>
-                  <View style={styles.sheetTitleRow}>
-                    <View style={styles.sheetMeta}>
-                      <Ionicons name="star" size={14} color="#F59E0B" />
-                      <Text style={[styles.sheetRating, { color: theme.text }]}>
-                        {getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount).rating.toFixed(1)}
-                      </Text>
-                      <Text style={[styles.sheetReviews, { color: theme.textSecondary }]}>
-                        ({getAverageRating(selectedBar.id, selectedBar.rating, selectedBar.reviewCount).count} reviews)
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() => toggleSavedBar(selectedBar.id)}
-                      style={[styles.saveBarBtn, { backgroundColor: isBarSaved(selectedBar.id) ? theme.accent + '25' : theme.surface, borderColor: theme.border }]}
-                    >
-                      <Ionicons
-                        name={isBarSaved(selectedBar.id) ? 'bookmark' : 'bookmark-outline'}
-                        size={20}
-                        color={theme.accent}
-                      />
-                      <Text style={[styles.saveBarBtnText, { color: theme.accent }]}>
-                        {isBarSaved(selectedBar.id) ? 'Saved' : 'Save bar'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Text style={[styles.sheetAddress, { color: theme.textTertiary }]}>
-                    {selectedBar.address ?? `${selectedBar.city}, ${selectedBar.country}`}
-                  </Text>
-                  <Text style={[styles.rateLabel, { color: theme.textSecondary }]}>Rate this bar</Text>
-                  <View style={styles.starsRow}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const current = getRating(selectedBar.id);
-                      const filled = current != null ? star <= current : false;
-                      return (
-                        <Pressable
-                          key={star}
-                          onPress={() => setRating(selectedBar.id, star)}
-                          hitSlop={8}
-                          style={styles.starBtn}
-                        >
-                          <Ionicons
-                            name={filled ? 'star' : 'star-outline'}
-                            size={28}
-                            color={filled ? '#F59E0B' : theme.textTertiary}
-                          />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={[styles.menuLabel, { color: theme.textSecondary }]}>Cocktail menu</Text>
-                  <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
-                    <View style={styles.menuList}>
-                      {selectedBar.menu.map((item) => (
-                        <Pressable
-                          key={item.cocktailId}
-                          onPress={() => {
-                            setSelectedBar(null);
-                            router.push(`/cocktail/${item.cocktailId}`);
-                          }}
-                          style={({ pressed }) => [
-                            styles.menuItem,
-                            { backgroundColor: pressed ? theme.surface : 'transparent' },
-                          ]}
-                        >
-                          <Text style={[styles.menuItemName, { color: theme.text }]} numberOfLines={1}>
-                            {item.cocktailName}
-                          </Text>
-                          <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+                );
+              })}
+            </View>
+
+            <Text style={[typography.overline, styles.sheetLabel, { color: theme.textSecondary }]}>On the menu</Text>
+            <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+              <View style={[styles.menuCard, { backgroundColor: theme.surface }]}>
+                {selectedBar.menu.map((item, i) => (
+                  <Pressable
+                    key={item.cocktailId}
+                    onPress={() => {
+                      setSelectedBar(null);
+                      router.push(`/cocktail/${item.cocktailId}`);
+                    }}
+                    style={({ pressed }) => [
+                      styles.menuItem,
+                      i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.separator },
+                      pressed && { backgroundColor: theme.surfaceSecondary },
+                    ]}
+                  >
+                    <Text style={[typography.body, { color: theme.text, flex: 1 }]} numberOfLines={1}>
+                      {item.cocktailName}
+                    </Text>
+                    {!!item.price && <Text style={[typography.body, { color: theme.textSecondary }]}>{item.price}</Text>}
+                    <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </>
+        )}
+      </Sheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  searchWrap: { paddingTop: spacing.sm, paddingBottom: spacing.md },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
-    padding: 0,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-  },
-  countText: { ...typography.small },
-  locationBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-  },
-  locationBtnText: { ...typography.small, fontWeight: '600' },
+  search: { paddingHorizontal: GUTTER, marginBottom: spacing.lg },
+  locating: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   list: { flex: 1 },
-  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+  listContent: { paddingBottom: TAB_BAR_CLEARANCE },
   listContentEmpty: { flexGrow: 1 },
-  barCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
-    marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  barPin: {
+  card: { marginHorizontal: GUTTER, borderRadius: borderRadius.lg, overflow: 'hidden' },
+  barRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.md },
+  monogram: {
     width: 44,
     height: 44,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  barInfo: { flex: 1 },
-  barName: { ...typography.bodyBold, marginBottom: 2 },
-  barPlace: { ...typography.small, marginBottom: 4 },
-  barDistance: { ...typography.small, fontWeight: '600' },
-  barMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  barRating: { ...typography.captionBold },
-  barReviews: { ...typography.small },
-  popupOverlay: {
+  monogramText: { ...typography.h3 },
+  barBody: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  popupCard: {
-    width: '100%',
-    maxWidth: 360,
-    maxHeight: '80%',
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  popupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
     gap: spacing.sm,
+    marginLeft: spacing.md,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md + 2,
   },
-  popupCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  popupBody: {},
-  sheetTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.xs },
-  sheetTitle: { ...typography.h3, flex: 1 },
-  saveBarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.md, borderWidth: 1 },
-  saveBarBtnText: { ...typography.small, fontWeight: '600' },
-  sheetMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  sheetRating: { ...typography.captionBold },
-  sheetReviews: { ...typography.small },
-  sheetAddress: { ...typography.small, marginTop: 2 },
-  rateLabel: { ...typography.small, marginTop: spacing.md, marginBottom: spacing.xs, fontWeight: '600' },
-  starsRow: { flexDirection: 'row', gap: 4 },
+  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  sheetMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: -spacing.sm },
+  sheetLabel: { marginTop: spacing['2xl'], marginBottom: spacing.sm },
+  starsRow: { flexDirection: 'row', gap: spacing.xs },
   starBtn: { padding: 2 },
-  menuLabel: { ...typography.small, marginBottom: spacing.sm, fontWeight: '600' },
-  menuScroll: { maxHeight: 200 },
-  menuList: { gap: 2 },
+  menuScroll: { maxHeight: 240 },
+  menuCard: { borderRadius: borderRadius.lg, overflow: 'hidden' },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    paddingVertical: spacing.md + 2,
+    paddingHorizontal: spacing.lg,
   },
-  menuItemName: { ...typography.body, flex: 1 },
 });

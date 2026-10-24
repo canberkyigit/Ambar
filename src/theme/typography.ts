@@ -15,26 +15,38 @@ export const fontFamilies = {
 } as const;
 
 export const typography = {
-  hero: {
+  /** Large screen titles (tab roots). */
+  largeTitle: {
     fontSize: 32,
+    lineHeight: 38,
+    fontWeight: '700' as const,
+    letterSpacing: -0.9,
+    fontFamily: fontFamilies.bold,
+  },
+  hero: {
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: '700' as const,
     letterSpacing: -0.8,
     fontFamily: fontFamilies.bold,
   },
   h1: {
     fontSize: 26,
+    lineHeight: 32,
     fontWeight: '700' as const,
     letterSpacing: -0.5,
     fontFamily: fontFamilies.bold,
   },
   h2: {
     fontSize: 20,
+    lineHeight: 26,
     fontWeight: '600' as const,
     letterSpacing: -0.3,
     fontFamily: fontFamilies.semiBold,
   },
   h3: {
     fontSize: 17,
+    lineHeight: 22,
     fontWeight: '600' as const,
     letterSpacing: -0.2,
     fontFamily: fontFamilies.semiBold,
@@ -61,6 +73,14 @@ export const typography = {
     fontSize: 13,
     fontWeight: '600' as const,
     letterSpacing: 0,
+    fontFamily: fontFamilies.semiBold,
+  },
+  /** Uppercase section labels. */
+  overline: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
     fontFamily: fontFamilies.semiBold,
   },
   small: {

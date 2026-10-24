@@ -1,30 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  FlatList,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useMyBarStore } from '../src/stores/useMyBarStore';
 import { useAchievementStore } from '../src/stores/useAchievementStore';
-import { cocktailService } from '../src/services/cocktailService';
+import { cocktailService, type IngredientMatch } from '../src/services/cocktailService';
 import { CocktailCard } from '../src/components/cocktail/CocktailCard';
 import { EmptyState } from '../src/components/shared/EmptyState';
-import { typography, spacing, borderRadius } from '../src/theme';
-import type { CocktailSummary, IngredientItem } from '../src/types/cocktail';
+import { NavHeader, SearchField } from '../src/components/ui';
+import { haptics } from '../src/utils/haptics';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
+import type { IngredientItem } from '../src/types/cocktail';
 
 type Tab = 'ingredients' | 'cocktails';
 
 export default function MyBarScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeStore();
   const { ingredients: myIngredients, toggleIngredient, hasIngredient } = useMyBarStore();
@@ -34,7 +25,7 @@ export default function MyBarScreen() {
   const [search, setSearch] = useState('');
   const [allIngredients, setAllIngredients] = useState<IngredientItem[]>([]);
   const [loadingIngredients, setLoadingIngredients] = useState(true);
-  const [cocktails, setCocktails] = useState<CocktailSummary[]>([]);
+  const [cocktails, setCocktails] = useState<IngredientMatch[]>([]);
   const [loadingCocktails, setLoadingCocktails] = useState(false);
 
   useEffect(() => {
@@ -50,7 +41,7 @@ export default function MyBarScreen() {
       return;
     }
     setLoadingCocktails(true);
-    cocktailService.getByIngredient(myIngredients[0]).then((data) => {
+    cocktailService.getByIngredients(myIngredients).then((data) => {
       setCocktails(data);
       setLoadingCocktails(false);
     }).catch(() => {
@@ -77,73 +68,79 @@ export default function MyBarScreen() {
       const selected = hasIngredient(name);
 
       return (
-        <Animated.View entering={FadeInDown.delay(Math.min(index * 20, 400)).springify()}>
-          <Pressable
-            onPress={() => handleToggle(name)}
-            style={({ pressed }) => [
-              styles.ingredientItem,
-              {
-                backgroundColor: selected ? theme.accent + '12' : theme.surface,
-                transform: [{ scale: pressed ? 0.97 : 1 }],
-              },
+        <Pressable
+          onPress={() => {
+            haptics.selection();
+            handleToggle(name);
+          }}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          style={({ pressed }) => [styles.ingredientItem, pressed && { backgroundColor: theme.surfaceSecondary }]}
+        >
+          <View
+            style={[
+              styles.ingredientInner,
+              index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.separator },
             ]}
           >
-            <View style={[
-              styles.checkCircle,
-              { backgroundColor: selected ? theme.accent : theme.surfaceSecondary },
-            ]}>
-              {selected && <Ionicons name="checkmark" size={14} color="#FFF" />}
-            </View>
-            <Text style={[styles.ingredientName, { color: selected ? theme.text : theme.textSecondary }]}>
-              {name}
-            </Text>
-          </Pressable>
-        </Animated.View>
+            <Text style={[typography.body, styles.ingredientName, { color: theme.text }]}>{name}</Text>
+            <Ionicons
+              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+              size={24}
+              color={selected ? theme.accent : theme.textTertiary}
+            />
+          </View>
+        </Pressable>
       );
     },
     [theme, hasIngredient, handleToggle],
   );
 
   const renderCocktailItem = useCallback(
-    ({ item, index }: { item: CocktailSummary; index: number }) => (
-      <View style={styles.cocktailCardWrapper}>
-        <CocktailCard cocktail={item} index={index} size="large" />
-      </View>
+    ({ item }: { item: IngredientMatch }) => (
+      <CocktailCard
+        cocktail={item}
+        size="large"
+        subtitle={item.missing === 0 ? 'You have everything' : `Missing ${item.missing} ${item.missing === 1 ? 'ingredient' : 'ingredients'}`}
+      />
     ),
     [],
   );
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>My Bar</Text>
-        <View style={[styles.countBadge, { backgroundColor: theme.accent + '18' }]}>
-          <Text style={[styles.countText, { color: theme.accent }]}>{myIngredients.length}</Text>
-        </View>
-      </View>
+  const listPadding = { paddingBottom: insets.bottom + spacing['2xl'] };
 
-      {/* Segmented Control */}
-      <View style={[styles.segmentedControl, { backgroundColor: theme.surface }]}>
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader
+        title="My bar"
+        right={
+          <View style={[styles.countBadge, { backgroundColor: theme.accentLight }]}>
+            <Text
+              style={[typography.captionBold, { color: theme.accent }]}
+              accessibilityLabel={`${myIngredients.length} ingredients in your bar`}
+            >
+              {myIngredients.length}
+            </Text>
+          </View>
+        }
+      />
+
+      {/* Segmented control */}
+      <View style={[styles.segmentedControl, { backgroundColor: theme.surfaceSecondary }]}>
         {(['ingredients', 'cocktails'] as Tab[]).map((tab) => {
           const active = activeTab === tab;
           return (
             <Pressable
               key={tab}
-              onPress={() => setActiveTab(tab)}
-              style={[
-                styles.segment,
-                active && { backgroundColor: theme.accent },
-              ]}
+              onPress={() => {
+                if (!active) haptics.selection();
+                setActiveTab(tab);
+              }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              style={[styles.segment, active && { backgroundColor: theme.surface }]}
             >
-              <Ionicons
-                name={tab === 'ingredients' ? 'list' : 'wine'}
-                size={16}
-                color={active ? '#FFF' : theme.textSecondary}
-              />
-              <Text style={[styles.segmentText, { color: active ? '#FFF' : theme.textSecondary }]}>
+              <Text style={[typography.captionBold, { color: active ? theme.text : theme.textSecondary }]}>
                 {tab === 'ingredients' ? 'Ingredients' : 'Recipes'}
               </Text>
             </Pressable>
@@ -153,65 +150,56 @@ export default function MyBarScreen() {
 
       {activeTab === 'ingredients' ? (
         <>
-          <View style={[styles.searchBar, { backgroundColor: theme.surface }]}>
-            <Ionicons name="search" size={18} color={theme.textTertiary} />
-            <TextInput
-              style={[styles.searchInput, { color: theme.text }]}
-              placeholder="Search ingredients..."
-              placeholderTextColor={theme.textTertiary}
-              value={search}
-              onChangeText={setSearch}
-              autoCorrect={false}
-            />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
-              </Pressable>
-            )}
-          </View>
+          <SearchField
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search ingredients"
+            style={styles.searchField}
+          />
 
           {loadingIngredients ? (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={theme.accent} />
-            </View>
+            <ActivityIndicator color={theme.accent} style={styles.loader} />
           ) : (
             <FlatList
               data={filteredIngredients}
               keyExtractor={(item) => item.strIngredient1}
               renderItem={renderIngredientItem}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={listPadding}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <EmptyState
+                  icon="search-outline"
+                  title="No matching ingredients"
+                  subtitle="Check the spelling or try a shorter search."
+                />
+              }
             />
           )}
         </>
+      ) : loadingCocktails ? (
+        <ActivityIndicator color={theme.accent} style={styles.loader} />
+      ) : myIngredients.length === 0 ? (
+        <EmptyState
+          icon="wine-outline"
+          title="No ingredients yet"
+          subtitle="Switch to Ingredients and tick what you have to see what you can make."
+        />
+      ) : cocktails.length === 0 ? (
+        <EmptyState
+          icon="search-outline"
+          title="No cocktails found"
+          subtitle="Try adding more common ingredients, like vodka, gin or lime."
+        />
       ) : (
-        <>
-          {loadingCocktails ? (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={theme.accent} />
-            </View>
-          ) : myIngredients.length === 0 ? (
-            <EmptyState
-              icon="wine-outline"
-              title="No ingredients yet"
-              subtitle="Add ingredients to see what you can make"
-            />
-          ) : cocktails.length === 0 ? (
-            <EmptyState
-              icon="search-outline"
-              title="No cocktails found"
-              subtitle="Try adding more common ingredients"
-            />
-          ) : (
-            <FlatList
-              data={cocktails}
-              keyExtractor={(item) => item.idDrink}
-              renderItem={renderCocktailItem}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
-        </>
+        <FlatList
+          data={cocktails}
+          keyExtractor={(item) => item.idDrink}
+          renderItem={renderCocktailItem}
+          contentContainerStyle={[styles.cocktailList, listPadding]}
+          showsVerticalScrollIndicator={false}
+        />
       )}
     </View>
   );
@@ -219,65 +207,39 @@ export default function MyBarScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  title: { ...typography.h2 },
   countBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    minWidth: 32,
+    height: 28,
+    paddingHorizontal: spacing.sm + 2,
     borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  countText: { ...typography.captionBold },
   segmentedControl: {
     flexDirection: 'row',
-    marginHorizontal: spacing.lg,
-    borderRadius: borderRadius.lg,
-    padding: 3,
+    marginHorizontal: GUTTER,
     marginBottom: spacing.md,
+    padding: 3,
+    borderRadius: borderRadius.md,
   },
   segment: {
     flex: 1,
-    flexDirection: 'row',
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.sm + 1,
   },
-  segmentText: { ...typography.captionBold },
-  searchBar: {
+  searchField: { marginHorizontal: GUTTER, marginBottom: spacing.sm },
+  loader: { marginTop: spacing['4xl'] },
+  ingredientItem: { paddingLeft: GUTTER },
+  ingredientInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.lg,
-    gap: spacing.sm,
-  },
-  searchInput: { flex: 1, ...typography.body, padding: 0 },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 40,
-  },
-  ingredientItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.xs + 2,
     gap: spacing.md,
+    minHeight: 48,
+    paddingVertical: spacing.md,
+    paddingRight: GUTTER,
   },
-  checkCircle: {
-    width: 24, height: 24, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ingredientName: { ...typography.body, flex: 1 },
-  cocktailCardWrapper: { marginBottom: spacing.xs },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  ingredientName: { flex: 1 },
+  cocktailList: { paddingHorizontal: GUTTER, paddingTop: spacing.xs },
 });

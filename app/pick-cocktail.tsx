@@ -1,26 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  Image,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  Keyboard,
-} from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, Keyboard } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { cocktailService } from '../src/services/cocktailService';
 import { useCocktailPickerStore } from '../src/stores/useCocktailPickerStore';
 import { EmptyState } from '../src/components/shared/EmptyState';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { CocktailListRowSkeleton } from '../src/components/ui/Skeleton';
+import { NavHeader, SearchField } from '../src/components/ui';
+import { haptics } from '../src/utils/haptics';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 import type { Cocktail } from '../src/types/cocktail';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+const THUMB_SIZE = 56;
 
 export default function PickCocktailScreen() {
   const insets = useSafeAreaInsets();
@@ -65,7 +59,7 @@ export default function PickCocktailScreen() {
   }, []);
 
   const filteredData = useMemo(() => {
-    if (!query.trim()) return allCocktails.sort((a, b) => a.strDrink.localeCompare(b.strDrink));
+    if (!query.trim()) return [...allCocktails].sort((a, b) => a.strDrink.localeCompare(b.strDrink));
     const q = query.toLowerCase();
     return allCocktails
       .filter(
@@ -77,6 +71,7 @@ export default function PickCocktailScreen() {
   }, [allCocktails, query]);
 
   const onSelect = (item: Cocktail) => {
+    haptics.selection();
     setPendingSelection({ id: item.idDrink, name: item.strDrink });
     router.back();
   };
@@ -84,87 +79,62 @@ export default function PickCocktailScreen() {
   const renderItem = ({ item }: { item: Cocktail }) => (
     <Pressable
       onPress={() => onSelect(item)}
-      style={({ pressed }) => [
-        styles.listItem,
-        { backgroundColor: pressed ? theme.surface : 'transparent' },
-      ]}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.surface }]}
+      accessibilityRole="button"
+      accessibilityLabel={`Select ${item.strDrink}`}
     >
-      <Image source={{ uri: item.strDrinkThumb }} style={styles.listImage} />
-      <View style={styles.listInfo}>
-        <Text style={[styles.listName, { color: theme.text }]} numberOfLines={1}>
+      <Image cachePolicy="memory-disk" transition={120}
+        source={{ uri: `${item.strDrinkThumb}/preview` }}
+        style={[styles.thumb, { backgroundColor: theme.surfaceSecondary }]}
+      />
+      <View style={styles.rowInfo}>
+        <Text style={[typography.bodyBold, { color: theme.text }]} numberOfLines={1}>
           {item.strDrink}
         </Text>
-        <Text style={[styles.listCategory, { color: theme.textTertiary }]} numberOfLines={1}>
+        <Text style={[typography.caption, { color: theme.textSecondary }]} numberOfLines={1}>
           {item.strCategory} · {item.strGlass}
         </Text>
       </View>
-      <View
-        style={[
-          styles.alcBadge,
-          {
-            backgroundColor:
-              item.strAlcoholic === 'Alcoholic' ? '#EF444412' : '#10B98112',
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.alcBadgeText,
-            {
-              color: item.strAlcoholic === 'Alcoholic' ? '#EF4444' : '#10B981',
-            },
-          ]}
-        >
-          {item.strAlcoholic === 'Alcoholic' ? 'ALC' : 'N/A'}
-        </Text>
-      </View>
-      <Ionicons name="checkmark-circle-outline" size={22} color={theme.accent} />
+      {item.strAlcoholic !== 'Alcoholic' && (
+        <View style={[styles.tag, { backgroundColor: theme.success + '1F' }]}>
+          <Text style={[styles.tagText, { color: theme.success }]}>0%</Text>
+        </View>
+      )}
     </Pressable>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Select cocktail</Text>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={theme.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search cocktails..."
-            placeholderTextColor={theme.textTertiary}
-            value={query}
-            onChangeText={setQuery}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-          {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={20} color={theme.textTertiary} />
-            </Pressable>
-          )}
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader title="Select cocktail" modal />
+      <SearchField
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search cocktails"
+        style={styles.searchField}
+      />
 
       {loading && allCocktails.length === 0 ? (
-        <ActivityIndicator size="large" color={theme.accent} style={styles.loader} />
+        <View>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <CocktailListRowSkeleton key={i} />
+          ))}
+        </View>
       ) : filteredData.length === 0 ? (
         <EmptyState
           icon="wine-outline"
           title="No cocktails found"
-          subtitle="Try a different search"
+          subtitle="Try a different name or category."
         />
       ) : (
         <FlatList
           data={filteredData}
           keyExtractor={(item) => item.idDrink}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={{ paddingBottom: insets.bottom + spacing['2xl'] }}
+          keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => Keyboard.dismiss()}
           ItemSeparatorComponent={() => (
-            <View style={[styles.separator, { backgroundColor: theme.border }]} />
+            <View style={[styles.separator, { backgroundColor: theme.separator }]} />
           )}
           renderItem={renderItem}
         />
@@ -175,63 +145,17 @@ export default function PickCocktailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: {
-    marginBottom: spacing.sm,
-  },
-  title: {
-    ...typography.h2,
-    marginBottom: spacing.md,
-  },
-  searchBar: {
+  searchField: { marginHorizontal: GUTTER, marginBottom: spacing.sm },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    gap: spacing.sm,
+    paddingHorizontal: GUTTER,
+    paddingVertical: spacing.sm,
+    gap: spacing.md + 2,
   },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
-    padding: 0,
-  },
-  list: { paddingBottom: 120 },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm + 2,
-    gap: spacing.md,
-  },
-  listImage: {
-    width: 50,
-    height: 50,
-    borderRadius: borderRadius.md,
-  },
-  listInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  listName: { ...typography.bodyBold },
-  listCategory: { ...typography.small },
-  alcBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: borderRadius.full,
-  },
-  alcBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  separator: {
-    height: 0.5,
-    marginLeft: spacing.lg + 50 + spacing.md,
-  },
-  loader: { marginTop: 40 },
+  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.md },
+  rowInfo: { flex: 1, gap: 2 },
+  tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.sm },
+  tagText: { ...typography.small, fontWeight: '700' },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: GUTTER + THUMB_SIZE + spacing.md + 2 },
 });

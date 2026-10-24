@@ -1,21 +1,23 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   Pressable,
   StyleSheet,
   Dimensions,
   TextInput,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSequence, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, withDelay, runOnJS, Easing } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useSocialStore } from '../../stores/useSocialStore';
 import { useNotificationsStore } from '../../stores/useNotificationsStore';
-import { typography, spacing, borderRadius, fontFamilies } from '../../theme';
+import { typography, spacing, borderRadius, fontFamilies, GUTTER } from '../../theme';
+import { haptics } from '../../utils/haptics';
 import type { SocialPost } from '../../types/cocktail';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,31 +37,60 @@ const CURRENT_USERNAME = 'you';
 
 interface PostCardProps {
   post: SocialPost;
-  index: number;
   /** When true (e.g. on post detail screen), comments section is expanded by default. */
   defaultExpandComments?: boolean;
 }
 
-export function PostCard({ post, index, defaultExpandComments = false }: PostCardProps) {
+/** Memoized: liking one post must not re-render every other post in the feed. */
+export const PostCard = memo(function PostCard({ post, defaultExpandComments = false }: PostCardProps) {
   const router = useRouter();
   const { theme } = useThemeStore();
-  const { toggleLike, isLiked, addComment, toggleSave, isSaved, deletePost } = useSocialStore();
+  // Narrow selectors: this card only re-renders when its own like/save state changes.
+  const liked = useSocialStore((s) => s.likedPosts.includes(post.id));
+  const saved = useSocialStore((s) => s.savedPosts.includes(post.id));
+  const toggleLike = useSocialStore((s) => s.toggleLike);
+  const toggleSave = useSocialStore((s) => s.toggleSave);
+  const addComment = useSocialStore((s) => s.addComment);
+  const deletePost = useSocialStore((s) => s.deletePost);
   const addNotification = useNotificationsStore((s) => s.addNotification);
   const [showComments, setShowComments] = useState(defaultExpandComments);
   const [commentText, setCommentText] = useState('');
 
-  const liked = isLiked(post.id);
-  const saved = isSaved(post.id);
   const heartScale = useSharedValue(1);
 
   const heartStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heartScale.value }],
   }));
 
+  // Big heart that pops over the photo on double-tap.
+  const burst = useSharedValue(0);
+  const burstStyle = useAnimatedStyle(() => ({
+    opacity: burst.value,
+    transform: [{ scale: 0.6 + burst.value * 0.4 }],
+  }));
+
+  const likeFromDoubleTap = () => {
+    if (!liked) handleLike();
+    else haptics.tap();
+    // Quick pop: in ~120ms, brief hold, out ~140ms (≈400ms total).
+    burst.value = withSequence(
+      withTiming(1, { duration: 120, easing: Easing.out(Easing.back(2)) }),
+      withDelay(140, withTiming(0, { duration: 140 })),
+    );
+  };
+
+  const openPost = () => router.push(`/post/${post.id}`);
+  const imageGesture = Gesture.Exclusive(
+    // Short window so a single tap (open post) isn't held back long waiting for a second tap.
+    Gesture.Tap().numberOfTaps(2).maxDelay(220).onEnd(() => runOnJS(likeFromDoubleTap)()),
+    Gesture.Tap().onEnd(() => runOnJS(openPost)()),
+  );
+
   const handleLike = () => {
+    if (!liked) haptics.tap();
     heartScale.value = withSequence(
-      withSpring(1.3, { damping: 4 }),
-      withSpring(1, { damping: 8 }),
+      withTiming(1.25, { duration: 90 }),
+      withTiming(1, { duration: 110 }),
     );
     toggleLike(post.id);
   };
@@ -106,10 +137,7 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
   };
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 60).springify()}
-      style={[styles.card, { backgroundColor: theme.surface }]}
-    >
+    <View style={styles.card}>
       {/* User Header */}
       <View style={styles.userRow}>
         <Pressable
@@ -135,7 +163,7 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
         <View style={styles.userRowRight}>
           <Pressable
             onPress={() => router.push(`/cocktail/${post.cocktailId}`)}
-            style={[styles.cocktailBadge, { backgroundColor: theme.accent + '15' }]}
+            style={[styles.cocktailBadge, { backgroundColor: theme.accentLight }]}
           >
             <Ionicons name="wine-outline" size={12} color={theme.accent} />
             <Text style={[styles.cocktailBadgeText, { color: theme.accent }]} numberOfLines={1}>
@@ -143,7 +171,7 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
             </Text>
           </Pressable>
           {post.username === 'you' && (
-            <Pressable onPress={handleMorePress} hitSlop={8} style={styles.moreBtn}>
+            <Pressable onPress={handleMorePress} hitSlop={8} style={styles.moreBtn} accessibilityLabel="Post options">
               <Ionicons name="ellipsis-horizontal" size={20} color={theme.text} />
             </Pressable>
           )}
@@ -151,27 +179,37 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
       </View>
 
       {/* Image */}
-      <Pressable onPress={() => router.push(`/post/${post.id}`)}>
-        <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-      </Pressable>
+      <GestureDetector gesture={imageGesture}>
+        <View
+          accessible
+          accessibilityRole="imagebutton"
+          accessibilityLabel={`${post.cocktailName} by ${post.username}`}
+          accessibilityHint="Opens the post"
+        >
+          <Image cachePolicy="memory-disk" transition={120} recyclingKey={post.id} source={{ uri: post.imageUrl }} style={[styles.postImage, { backgroundColor: theme.surface }]} />
+          <Animated.View pointerEvents="none" style={[styles.burst, burstStyle]}>
+            <Ionicons name="heart" size={96} color="#FFFFFF" />
+          </Animated.View>
+        </View>
+      </GestureDetector>
 
       {/* Actions */}
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
-          <Pressable onPress={handleLike} hitSlop={8}>
+          <Pressable onPress={handleLike} hitSlop={8} accessibilityLabel={liked ? 'Unlike' : 'Like'}>
             <Animated.View style={heartStyle}>
               <Ionicons
                 name={liked ? 'heart' : 'heart-outline'}
                 size={26}
-                color={liked ? '#EF4444' : theme.text}
+                color={liked ? theme.heart : theme.text}
               />
             </Animated.View>
           </Pressable>
-          <Pressable onPress={() => setShowComments(!showComments)} hitSlop={8}>
+          <Pressable onPress={() => setShowComments(!showComments)} hitSlop={8} accessibilityLabel="Comments">
             <Ionicons name="chatbubble-outline" size={24} color={theme.text} />
           </Pressable>
         </View>
-        <Pressable onPress={() => toggleSave(post.id)} hitSlop={8}>
+        <Pressable onPress={() => toggleSave(post.id)} hitSlop={8} accessibilityLabel={saved ? 'Unsave' : 'Save'}>
           <Ionicons
             name={saved ? 'bookmark' : 'bookmark-outline'}
             size={24}
@@ -209,11 +247,12 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
               {c.text}
             </Text>
           ))}
-          <View style={[styles.commentInput, { backgroundColor: theme.background }]}>
+          <View style={[styles.commentInput, { backgroundColor: theme.surfaceSecondary }]}>
             <TextInput
               style={[styles.commentField, { color: theme.text }]}
-              placeholder="Add a comment..."
+              placeholder="Add a comment…"
               placeholderTextColor={theme.textTertiary}
+              selectionColor={theme.accent}
               value={commentText}
               onChangeText={setCommentText}
               onSubmitEditing={handleComment}
@@ -227,27 +266,19 @@ export function PostCard({ post, index, defaultExpandComments = false }: PostCar
           </View>
         </View>
       )}
-    </Animated.View>
+    </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: spacing.sm,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    marginHorizontal: spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    marginBottom: spacing.xl,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: GUTTER,
+    paddingVertical: spacing.md,
     gap: spacing.sm,
   },
   userRowLeft: {
@@ -266,7 +297,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: '#FFF',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: fontFamilies.bold,
   },
   userInfo: { flex: 1 },
   userRowRight: {
@@ -277,7 +308,7 @@ const styles = StyleSheet.create({
   moreBtn: {
     padding: spacing.xs,
   },
-  username: { ...typography.captionBold },
+  username: { ...typography.bodyBold },
   timeAgo: { ...typography.small, marginTop: 1 },
   cocktailBadge: {
     flexDirection: 'row',
@@ -289,6 +320,15 @@ const styles = StyleSheet.create({
     maxWidth: 130,
   },
   cocktailBadgeText: { ...typography.small, fontWeight: '600' },
+  burst: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
   postImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_WIDTH,
@@ -298,8 +338,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: GUTTER,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   actionsLeft: {
     flexDirection: 'row',
@@ -308,30 +349,30 @@ const styles = StyleSheet.create({
   },
   likeCount: {
     ...typography.captionBold,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: GUTTER,
     marginBottom: spacing.xs,
   },
   captionRow: {
-    ...typography.caption,
-    paddingHorizontal: spacing.md,
-    lineHeight: 18,
+    ...typography.body,
+    paddingHorizontal: GUTTER,
+    lineHeight: 21,
   },
   captionUsername: { fontFamily: fontFamilies.bold, fontWeight: '700' },
   viewComments: {
     ...typography.caption,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: GUTTER,
     marginTop: spacing.xs,
     paddingBottom: spacing.sm,
   },
   commentsSection: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: GUTTER,
     paddingTop: spacing.xs,
     paddingBottom: spacing.lg,
     gap: spacing.xs,
   },
   commentText: {
-    ...typography.caption,
-    lineHeight: 18,
+    ...typography.body,
+    lineHeight: 21,
   },
   commentUsername: {
     fontFamily: fontFamilies.bold,
@@ -341,13 +382,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    height: 40,
+    marginTop: spacing.sm,
   },
   commentField: {
     flex: 1,
-    ...typography.caption,
+    ...typography.body,
     padding: 0,
   },
   postBtn: {

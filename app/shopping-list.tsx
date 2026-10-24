@@ -1,24 +1,38 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Share, Alert } from 'react-native';
+import { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Share, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
-import { useShoppingListStore } from '../src/stores/useShoppingListStore';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { useShoppingListStore, type ShoppingListItem } from '../src/stores/useShoppingListStore';
+import { useToastStore } from '../src/stores/useToastStore';
+import { formatMeasure } from '../src/utils/formatMeasure';
+import { haptics } from '../src/utils/haptics';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 import { EmptyState } from '../src/components/shared/EmptyState';
+import { Button, IconButton, NavHeader } from '../src/components/ui';
 
 export default function ShoppingListScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeStore();
   const { items, removeItem, clearList, getListForCopy } = useShoppingListStore();
+  const showToast = useToastStore((s) => s.show);
+
+  // Group items by the cocktail they came from, keeping insertion order.
+  const groups = useMemo(() => {
+    const map = new Map<string, ShoppingListItem[]>();
+    for (const item of items) {
+      const list = map.get(item.cocktailId);
+      if (list) list.push(item);
+      else map.set(item.cocktailId, [item]);
+    }
+    return Array.from(map.entries());
+  }, [items]);
 
   const handleCopy = async () => {
     const text = getListForCopy();
     await Clipboard.setStringAsync(text);
-    Alert.alert('Copied', 'Shopping list copied to clipboard.');
+    haptics.success();
+    showToast('Shopping list copied', 'success');
   };
 
   const handleShare = () => {
@@ -38,58 +52,68 @@ export default function ShoppingListScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Shopping list</Text>
-        <View style={styles.headerRight}>
-          {items.length > 0 && (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader
+        title="Shopping list"
+        right={
+          items.length > 0 && (
             <>
-              <Pressable onPress={handleCopy} hitSlop={8} style={styles.headerBtn}>
-                <Ionicons name="copy-outline" size={22} color={theme.text} />
-              </Pressable>
-              <Pressable onPress={handleShare} hitSlop={8} style={styles.headerBtn}>
-                <Ionicons name="share-outline" size={22} color={theme.text} />
-              </Pressable>
-              <Pressable onPress={handleClear} hitSlop={8} style={styles.headerBtn}>
-                <Ionicons name="trash-outline" size={22} color={theme.text} />
-              </Pressable>
+              <IconButton icon="copy-outline" size={38} onPress={handleCopy} accessibilityLabel="Copy list" />
+              <IconButton icon="share-outline" size={38} onPress={handleShare} accessibilityLabel="Share list" />
             </>
-          )}
-        </View>
-      </View>
+          )
+        }
+      />
 
       {items.length === 0 ? (
         <EmptyState
           icon="cart-outline"
-          title="List is empty"
-          subtitle="Add ingredients from cocktail detail with “Add to shopping list”"
+          title="Your list is empty"
+          subtitle="Open a cocktail and tap “Add to shopping list” to collect its ingredients here."
         />
       ) : (
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing['2xl'] }]}
           showsVerticalScrollIndicator={false}
         >
-          {items.map((item, index) => (
-            <Animated.View
-              key={item.id}
-              entering={FadeInDown.delay(index * 30).springify()}
-              style={[styles.row, { backgroundColor: theme.surface }]}
-            >
-              <View style={styles.rowContent}>
-                <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
-                <Text style={[styles.itemMeta, { color: theme.textTertiary }]}>
-                  {item.measure ? `${item.measure} · ` : ''}{item.cocktailName}
-                </Text>
+          {groups.map(([cocktailId, groupItems]) => (
+            <View key={cocktailId} style={styles.group}>
+              <Text style={[typography.overline, styles.groupLabel, { color: theme.textSecondary }]} numberOfLines={1}>
+                {groupItems[0].cocktailName}
+              </Text>
+              <View style={[styles.card, { backgroundColor: theme.surface }]}>
+                {groupItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.row,
+                      index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.separator },
+                    ]}
+                  >
+                    <Text style={[typography.body, styles.itemName, { color: theme.text }]} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    {!!item.measure && (
+                      <Text style={[styles.itemMeasure, { color: theme.textSecondary }]} numberOfLines={1}>
+                        {formatMeasure(item.measure)}
+                      </Text>
+                    )}
+                    <IconButton
+                      icon="close"
+                      variant="plain"
+                      size={36}
+                      color={theme.textTertiary}
+                      onPress={() => removeItem(item.id)}
+                      accessibilityLabel={`Remove ${item.name}`}
+                    />
+                  </View>
+                ))}
               </View>
-              <Pressable onPress={() => removeItem(item.id)} hitSlop={8} style={styles.removeBtn}>
-                <Ionicons name="close-circle-outline" size={22} color={theme.textTertiary} />
-              </Pressable>
-            </Animated.View>
+            </View>
           ))}
+
+          <Button title="Clear list" icon="trash-outline" variant="destructive" fullWidth onPress={handleClear} />
         </ScrollView>
       )}
     </View>
@@ -98,27 +122,20 @@ export default function ShoppingListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  title: { ...typography.h2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  headerBtn: { padding: spacing.xs },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 80 },
+  scrollContent: { paddingHorizontal: GUTTER, paddingTop: spacing.sm },
+  group: { marginBottom: spacing['2xl'] },
+  groupLabel: { marginBottom: spacing.sm, marginLeft: spacing.xs },
+  card: { borderRadius: borderRadius.lg, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.xs,
+    gap: spacing.sm,
+    minHeight: 50,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.xs,
+    paddingVertical: spacing.xs,
   },
-  rowContent: { flex: 1 },
-  itemName: { ...typography.bodyBold },
-  itemMeta: { ...typography.small, marginTop: 2 },
-  removeBtn: { padding: spacing.xs },
+  itemName: { flex: 1 },
+  itemMeasure: { ...typography.bodyBold, fontVariant: ['tabular-nums'], maxWidth: '40%' },
 });
