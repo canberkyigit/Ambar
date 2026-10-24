@@ -18,3 +18,9 @@ export const borderRadius = {
   '2xl': 24,
   full: 9999,
 } as const;
+
+/** Horizontal page gutter used by every screen. */
+export const GUTTER = spacing.lg;
+
+/** Bottom padding that keeps content clear of the floating tab bar. */
+export const TAB_BAR_CLEARANCE = 110;

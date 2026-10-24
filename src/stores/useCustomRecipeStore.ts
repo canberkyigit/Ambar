@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncRecipeAchievements } from './achievementSync';
 import type { CustomRecipe } from '../types/cocktail';
 
 interface CustomRecipeState {
@@ -12,9 +13,9 @@ interface CustomRecipeState {
 
 export const useCustomRecipeStore = create<CustomRecipeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       recipes: [],
-      addRecipe: (recipe) =>
+      addRecipe: (recipe) => {
         set((state) => ({
           recipes: [
             {
@@ -24,7 +25,9 @@ export const useCustomRecipeStore = create<CustomRecipeState>()(
             },
             ...state.recipes,
           ],
-        })),
+        }));
+        syncRecipeAchievements(get().recipes.length);
+      },
       removeRecipe: (id) =>
         set((state) => ({
           recipes: state.recipes.filter((r) => r.id !== id),

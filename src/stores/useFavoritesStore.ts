@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncFavoriteAchievements } from './achievementSync';
 import type { CocktailSummary } from '../types/cocktail';
 
 interface FavoritesState {
@@ -16,10 +17,12 @@ export const useFavoritesStore = create<FavoritesState>()(
     (set, get) => ({
       favorites: [],
       isFavorite: (id) => get().favorites.some((f) => f.idDrink === id),
-      addFavorite: (cocktail) =>
+      addFavorite: (cocktail) => {
         set((state) => ({
           favorites: [cocktail, ...state.favorites],
-        })),
+        }));
+        syncFavoriteAchievements(get().favorites.length);
+      },
       removeFavorite: (id) =>
         set((state) => ({
           favorites: state.favorites.filter((f) => f.idDrink !== id),

@@ -4,7 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useNotificationsStore, type AppNotification } from '../src/stores/useNotificationsStore';
-import { typography, spacing } from '../src/theme';
+import { NavHeader, IconButton } from '../src/components/ui';
+import { EmptyState } from '../src/components/shared/EmptyState';
+import { typography, spacing, GUTTER } from '../src/theme';
+
+const ICON_SIZE = 40;
 
 function formatTime(ts: number): string {
   const sec = Math.floor((Date.now() - ts) / 1000);
@@ -31,6 +35,7 @@ function NotificationItem({
         : item.type === 'follow'
           ? 'person-add'
           : 'at';
+  const isLike = item.type === 'like';
 
   return (
     <Pressable
@@ -38,30 +43,26 @@ function NotificationItem({
         markAsRead(item.id);
         onPress?.();
       }}
-      style={[
-        styles.item,
-        { backgroundColor: item.read ? 'transparent' : theme.accent + '08' },
-      ]}
+      style={({ pressed }) => [styles.item, pressed && { backgroundColor: theme.surfaceSecondary }]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: theme.surface }]}>
-        <Ionicons
-          name={iconName as 'heart'}
-          size={22}
-          color={item.type === 'like' ? '#EF4444' : theme.accent}
-        />
+      <View style={[styles.iconWrap, { backgroundColor: isLike ? theme.heart + '1F' : theme.accentLight }]}>
+        <Ionicons name={iconName as 'heart'} size={19} color={isLike ? theme.heart : theme.accent} />
       </View>
       <View style={styles.itemBody}>
-        <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={1}>
-          {item.title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            style={[item.read ? typography.body : typography.bodyBold, styles.itemTitle, { color: theme.text }]}
+            numberOfLines={1}
+          >
+            {item.title}
+          </Text>
+          <Text style={[styles.itemTime, { color: theme.textTertiary }]}>{formatTime(item.timestamp)}</Text>
+        </View>
         <Text style={[styles.itemBodyText, { color: theme.textSecondary }]} numberOfLines={2}>
           {item.body}
         </Text>
-        <Text style={[styles.itemTime, { color: theme.textTertiary }]}>
-          {formatTime(item.timestamp)}
-        </Text>
       </View>
-      {!item.read && <View style={[styles.unreadDot, { backgroundColor: theme.accent }]} />}
+      <View style={[styles.unreadDot, { backgroundColor: item.read ? 'transparent' : theme.accent }]} />
     </Pressable>
   );
 }
@@ -73,29 +74,29 @@ export default function NotificationsScreen() {
   const { items, markAllAsRead, unreadCount } = useNotificationsStore();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Notifications</Text>
-        {unreadCount() > 0 ? (
-          <Pressable onPress={() => markAllAsRead()} style={styles.markAll}>
-            <Text style={[styles.markAllText, { color: theme.accent }]}>Mark all read</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader
+        title="Notifications"
+        right={
+          unreadCount() > 0 ? (
+            <IconButton
+              icon="checkmark-done"
+              variant="plain"
+              size={38}
+              color={theme.accent}
+              onPress={() => markAllAsRead()}
+              accessibilityLabel="Mark all as read"
+            />
+          ) : undefined
+        }
+      />
 
       {items.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="notifications-off-outline" size={64} color={theme.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>No notifications yet</Text>
-          <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-            When someone likes or comments on your posts, you'll see them here
-          </Text>
-        </View>
+        <EmptyState
+          icon="notifications-off-outline"
+          title="No notifications yet"
+          subtitle="Share a post on the Feed — likes, comments and new followers will show up here."
+        />
       ) : (
         <FlatList
           data={items}
@@ -106,8 +107,8 @@ export default function NotificationsScreen() {
               onPress={item.postId ? () => router.push(`/post/${item.postId}`) : undefined}
             />
           )}
-          contentContainerStyle={{ paddingBottom: 40 }}
-          ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: theme.border }]} />}
+          contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: insets.bottom + spacing['2xl'] }}
+          ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: theme.separator }]} />}
         />
       )}
     </View>
@@ -116,44 +117,25 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: { width: 36 },
-  title: { ...typography.h2 },
-  markAll: { padding: spacing.xs },
-  markAllText: { ...typography.captionBold },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: GUTTER,
     paddingVertical: spacing.md,
     gap: spacing.md,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: ICON_SIZE,
+    height: ICON_SIZE,
+    borderRadius: ICON_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemBody: { flex: 1 },
-  itemTitle: { ...typography.bodyBold, marginBottom: 2 },
-  itemBodyText: { ...typography.caption },
-  itemTime: { ...typography.small, marginTop: 2 },
+  itemBody: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  itemTitle: { flex: 1 },
+  itemBodyText: { ...typography.caption, lineHeight: 18 },
+  itemTime: { ...typography.small },
   unreadDot: { width: 8, height: 8, borderRadius: 4 },
-  sep: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg + 44 + spacing.md },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing['3xl'],
-  },
-  emptyTitle: { ...typography.h3, marginTop: spacing.lg },
-  emptySub: { ...typography.body, marginTop: spacing.sm, textAlign: 'center' },
+  sep: { height: StyleSheet.hairlineWidth, marginLeft: GUTTER + ICON_SIZE + spacing.md },
 });

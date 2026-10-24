@@ -2,13 +2,20 @@ export interface ThemeColors {
   background: string;
   surface: string;
   surfaceSecondary: string;
+  /** Raised surface used for sheets, menus and modals. */
+  elevated: string;
   text: string;
   textSecondary: string;
   textTertiary: string;
   accent: string;
+  /** Tinted background for accent-colored content (chips, icon wells). */
   accentLight: string;
   accentDark: string;
+  /** Foreground color for text/icons placed on an `accent` background. */
+  onAccent: string;
   border: string;
+  /** Hairline separators inside lists and cards. */
+  separator: string;
   card: string;
   cardShadow: string;
   tabBar: string;
@@ -18,7 +25,13 @@ export interface ThemeColors {
   success: string;
   error: string;
   warning: string;
+  /** Rating stars. */
+  star: string;
+  /** Favorite / like heart. */
+  heart: string;
   overlay: string;
+  /** Translucent fill for buttons that sit on top of photos. */
+  scrim: string;
   skeleton: string;
   skeletonHighlight: string;
   gradient: readonly string[];
@@ -26,56 +39,71 @@ export interface ThemeColors {
 
 export type ColorScheme = 'light' | 'dark';
 
+// Brand: warm neutrals with an amber accent ("Ambar").
+// The accent lives in `accent`/`onAccent` only — change those two to rebrand.
+
 const light: ThemeColors = {
-  background: '#FFFFFF',
-  surface: '#F2F2F7',
-  surfaceSecondary: '#E5E5EA',
-  text: '#1C1C1E',
-  textSecondary: '#636366',
-  textTertiary: '#AEAEB2',
-  accent: '#5E5CE6',
-  accentLight: '#EEEDF9',
-  accentDark: '#4B49B6',
-  border: '#D1D1D6',
+  background: '#FAF8F5',
+  surface: '#FFFFFF',
+  surfaceSecondary: '#F0ECE6',
+  elevated: '#FFFFFF',
+  text: '#1C1915',
+  textSecondary: '#6B645B',
+  textTertiary: '#A39B90',
+  accent: '#A8650F',
+  accentLight: '#F6EBDC',
+  accentDark: '#7F4B09',
+  onAccent: '#FFFFFF',
+  border: '#E4DED5',
+  separator: '#ECE7E0',
   card: '#FFFFFF',
-  cardShadow: 'rgba(0, 0, 0, 0.06)',
+  cardShadow: 'rgba(40, 28, 10, 0.08)',
   tabBar: '#FFFFFF',
-  tabBarBorder: '#E5E5EA',
-  iconActive: '#5E5CE6',
-  iconInactive: '#AEAEB2',
-  success: '#34C759',
-  error: '#FF3B30',
-  warning: '#FF9500',
-  overlay: 'rgba(0, 0, 0, 0.4)',
-  skeleton: '#E5E5EA',
-  skeletonHighlight: '#F2F2F7',
-  gradient: ['#FFFFFF', '#F2F2F7'],
+  tabBarBorder: '#E4DED5',
+  iconActive: '#A8650F',
+  iconInactive: '#A39B90',
+  success: '#2E9D5B',
+  error: '#D93A2E',
+  warning: '#D9880F',
+  star: '#E3A008',
+  heart: '#E5484D',
+  overlay: 'rgba(20, 16, 10, 0.45)',
+  scrim: 'rgba(0, 0, 0, 0.32)',
+  skeleton: '#ECE7E0',
+  skeletonHighlight: '#F5F2ED',
+  gradient: ['#FAF8F5', '#F0ECE6'],
 };
 
 const dark: ThemeColors = {
-  background: '#000000',
-  surface: '#1C1C1E',
-  surfaceSecondary: '#2C2C2E',
-  text: '#F5F5F7',
-  textSecondary: '#98989D',
-  textTertiary: '#636366',
-  accent: '#7B7BF7',
-  accentLight: '#1E1E3A',
-  accentDark: '#9D9DFF',
-  border: '#38383A',
-  card: '#1C1C1E',
-  cardShadow: 'rgba(0, 0, 0, 0.4)',
-  tabBar: '#1C1C1E',
-  tabBarBorder: '#38383A',
-  iconActive: '#7B7BF7',
-  iconInactive: '#636366',
-  success: '#30D158',
-  error: '#FF453A',
-  warning: '#FFD60A',
+  background: '#0D0C0A',
+  surface: '#191715',
+  surfaceSecondary: '#24211E',
+  elevated: '#1F1C19',
+  text: '#F5F1EA',
+  textSecondary: '#A69F95',
+  textTertiary: '#6F685F',
+  accent: '#F0A93B',
+  accentLight: '#2C2214',
+  accentDark: '#FFC46B',
+  onAccent: '#1B1206',
+  border: '#2E2A26',
+  separator: '#26231F',
+  card: '#191715',
+  cardShadow: 'rgba(0, 0, 0, 0.5)',
+  tabBar: '#141210',
+  tabBarBorder: '#2A2622',
+  iconActive: '#F0A93B',
+  iconInactive: '#6F685F',
+  success: '#3DD68C',
+  error: '#FF6B5E',
+  warning: '#F5B544',
+  star: '#F5B544',
+  heart: '#FF5C61',
   overlay: 'rgba(0, 0, 0, 0.6)',
-  skeleton: '#2C2C2E',
-  skeletonHighlight: '#38383A',
-  gradient: ['#000000', '#1C1C1E'],
+  scrim: 'rgba(0, 0, 0, 0.38)',
+  skeleton: '#211E1B',
+  skeletonHighlight: '#2B2724',
+  gradient: ['#0D0C0A', '#191715'],
 };
 
 export const colors = { light, dark } as const;

@@ -1,39 +1,33 @@
 import { useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  FlatList,
-  Image,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useJournalStore } from '../src/stores/useJournalStore';
 import { EmptyState } from '../src/components/shared/EmptyState';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { Button, IconButton, NavHeader, PressableScale } from '../src/components/ui';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 import type { JournalEntry } from '../src/types/cocktail';
 
-function StarRating({ rating, size = 12 }: { rating: number; size?: number }) {
+function StarRating({ rating, size = 13 }: { rating: number; size?: number }) {
+  const { theme } = useThemeStore();
   return (
-    <View style={styles.starsRow}>
+    <View style={styles.starsRow} accessibilityLabel={`${rating} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((star) => (
         <Ionicons
           key={star}
           name={star <= rating ? 'star' : 'star-outline'}
           size={size}
-          color={star <= rating ? '#F59E0B' : '#D1D5DB'}
+          color={star <= rating ? theme.star : theme.textTertiary}
         />
       ))}
     </View>
   );
 }
 
-function EntryCard({ entry, index }: { entry: JournalEntry; index: number }) {
+function EntryCard({ entry }: { entry: JournalEntry }) {
   const router = useRouter();
   const { theme } = useThemeStore();
   const { removeEntry } = useJournalStore();
@@ -44,46 +38,36 @@ function EntryCard({ entry, index }: { entry: JournalEntry; index: number }) {
   });
 
   const handleLongPress = () => {
-    Alert.alert(
-      'Delete Entry',
-      `Remove your tasting note for "${entry.cocktailName}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => removeEntry(entry.id) },
-      ],
-    );
+    Alert.alert('Delete entry', `Remove your tasting note for "${entry.cocktailName}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => removeEntry(entry.id) },
+    ]);
   };
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
-      <Pressable
-        onPress={() => router.push(`/cocktail/${entry.cocktailId}`)}
-        onLongPress={handleLongPress}
-        style={({ pressed }) => [
-          styles.entryCard,
-          {
-            backgroundColor: theme.surface,
-            transform: [{ scale: pressed ? 0.97 : 1 }],
-          },
-        ]}
-      >
-        <Image source={{ uri: `${entry.cocktailThumb}/preview` }} style={styles.entryImage} />
-        <View style={styles.entryContent}>
-          <View style={styles.entryTopRow}>
-            <Text style={[styles.entryName, { color: theme.text }]} numberOfLines={1}>
-              {entry.cocktailName}
-            </Text>
-            <Text style={[styles.entryDate, { color: theme.textTertiary }]}>{dateStr}</Text>
-          </View>
-          <StarRating rating={entry.rating} />
-          {entry.notes ? (
-            <Text style={[styles.entryNotes, { color: theme.textSecondary }]} numberOfLines={1}>
-              {entry.notes}
-            </Text>
-          ) : null}
+    <PressableScale
+      onPress={() => router.push(`/cocktail/${entry.cocktailId}`)}
+      onLongPress={handleLongPress}
+      accessibilityRole="button"
+      accessibilityHint="Opens the recipe. Long-press to delete this entry."
+      style={[styles.entryCard, { backgroundColor: theme.surface }]}
+    >
+      <Image cachePolicy="memory-disk" transition={120} source={{ uri: `${entry.cocktailThumb}/preview` }} style={[styles.entryImage, { backgroundColor: theme.surfaceSecondary }]} />
+      <View style={styles.entryContent}>
+        <View style={styles.entryTopRow}>
+          <Text style={[styles.entryName, { color: theme.text }]} numberOfLines={1}>
+            {entry.cocktailName}
+          </Text>
+          <Text style={[typography.caption, { color: theme.textTertiary }]}>{dateStr}</Text>
         </View>
-      </Pressable>
-    </Animated.View>
+        <StarRating rating={entry.rating} />
+        {entry.notes ? (
+          <Text style={[typography.caption, { color: theme.textSecondary }]} numberOfLines={1}>
+            {entry.notes}
+          </Text>
+        ) : null}
+      </View>
+    </PressableScale>
   );
 }
 
@@ -104,53 +88,60 @@ export default function JournalScreen() {
     return { total: entries.length, average: avg, mostReviewed: mostReviewed ? mostReviewed[0] : '—' };
   }, [entries, averageRating]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Tasting Journal</Text>
-        <Pressable
-          onPress={() => router.push('/journal/add')}
-          style={[styles.addBtn, { backgroundColor: theme.accent }]}
-          hitSlop={8}
-        >
-          <Ionicons name="add" size={20} color="#FFF" />
-        </Pressable>
-      </View>
+  const addEntry = () => router.push('/journal/add');
 
-      {stats && (
-        <Animated.View entering={FadeInDown.springify()}>
-          <View style={styles.statsRow}>
-            {[
-              { label: 'Entries', value: `${stats.total}`, color: '#3B82F6' },
-              { label: 'Avg Rating', value: stats.average.toFixed(1), color: '#F59E0B' },
-              { label: 'Top Pick', value: stats.mostReviewed, color: '#10B981' },
-            ].map((s) => (
-              <View key={s.label} style={[styles.statCard, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.statValue, { color: s.color }]} numberOfLines={1}>
-                  {s.value}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.textTertiary }]}>{s.label}</Text>
-              </View>
-            ))}
+  const statsCard = stats ? (
+    <View style={[styles.statsCard, { backgroundColor: theme.surface }]}>
+      {[
+        { label: 'Entries', value: `${stats.total}` },
+        { label: 'Avg rating', value: stats.average.toFixed(1), star: true },
+        { label: 'Top pick', value: stats.mostReviewed },
+      ].map((s, i) => (
+        <View
+          key={s.label}
+          style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: theme.separator }]}
+        >
+          <View style={styles.statValueRow}>
+            {s.star && <Ionicons name="star" size={14} color={theme.star} />}
+            <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>
+              {s.value}
+            </Text>
           </View>
-        </Animated.View>
-      )}
+          <Text style={[typography.caption, { color: theme.textSecondary }]}>{s.label}</Text>
+        </View>
+      ))}
+    </View>
+  ) : null;
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader
+        title="Tasting journal"
+        right={
+          entries.length > 0 ? (
+            <IconButton icon="add" variant="tinted" size={38} onPress={addEntry} accessibilityLabel="New entry" />
+          ) : null
+        }
+      />
 
       {entries.length === 0 ? (
-        <EmptyState
-          icon="book-outline"
-          title="No entries yet"
-          subtitle="Start your tasting journey by adding your first note"
-        />
+        <>
+          <EmptyState
+            icon="book-outline"
+            title="No entries yet"
+            subtitle="Rate the cocktails you try and jot down what you liked."
+          />
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+            <Button title="Add first entry" icon="add" size="lg" fullWidth onPress={addEntry} />
+          </View>
+        </>
       ) : (
         <FlatList
           data={entries}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => <EntryCard entry={item} index={index} />}
-          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => <EntryCard entry={item} />}
+          ListHeaderComponent={statsCard}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + spacing['2xl'] }]}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -160,57 +151,27 @@ export default function JournalScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+  listContent: { paddingHorizontal: GUTTER, paddingTop: spacing.sm, gap: spacing.sm },
+  statsCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  title: { ...typography.h2 },
-  addBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
-    gap: 2,
-  },
-  statValue: { ...typography.bodyBold },
-  statLabel: { ...typography.small },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 40,
-  },
-  entryCard: {
-    flexDirection: 'row',
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
+    paddingVertical: spacing.md + 2,
     marginBottom: spacing.sm,
   },
-  entryImage: { width: 72, height: 72, resizeMode: 'cover' },
-  entryContent: {
-    flex: 1,
-    padding: spacing.md,
-    justifyContent: 'center',
-    gap: 3,
-  },
-  entryTopRow: {
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: spacing.sm, gap: 2 },
+  statValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
+  statValue: { ...typography.h3, flexShrink: 1 },
+  entryCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
   },
-  entryName: { ...typography.captionBold, flex: 1, marginRight: spacing.sm },
-  starsRow: { flexDirection: 'row', gap: 1 },
-  entryNotes: { ...typography.small, marginTop: 1 },
-  entryDate: { ...typography.small },
+  entryImage: { width: 64, height: 64, borderRadius: borderRadius.md },
+  entryContent: { flex: 1, gap: 4 },
+  entryTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  entryName: { ...typography.bodyBold, flex: 1 },
+  starsRow: { flexDirection: 'row', gap: 2 },
+  bottomBar: { paddingHorizontal: GUTTER, paddingTop: spacing.md },
 });

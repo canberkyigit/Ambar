@@ -1,61 +1,59 @@
-import { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-} from 'react-native';
+import { useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withDelay,
+  withTiming,
   runOnJS,
 } from 'react-native-reanimated';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useAchievementStore, ACHIEVEMENTS } from '../../stores/useAchievementStore';
+import { haptics } from '../../utils/haptics';
 import { typography, spacing, borderRadius } from '../../theme';
+import { Button } from '../ui';
 
 const AUTO_DISMISS_MS = 4000;
 
 export default function AchievementUnlock() {
   const { theme } = useThemeStore();
-  const { recentUnlock, dismissUnlock } = useAchievementStore();
+  const recentUnlock = useAchievementStore((s) => s.recentUnlock);
+  const dismissUnlock = useAchievementStore((s) => s.dismissUnlock);
 
-  const scale = useSharedValue(0);
+  const scale = useSharedValue(0.92);
   const opacity = useSharedValue(0);
-  const glowScale = useSharedValue(0.6);
 
   const achievement = recentUnlock
     ? ACHIEVEMENTS.find((a) => a.id === recentUnlock)
     : null;
 
+  const handleDismiss = useCallback(() => {
+    scale.value = withTiming(0.96, { duration: 180 });
+    opacity.value = withTiming(0, { duration: 180 }, (finished) => {
+      if (finished) {
+        runOnJS(dismissUnlock)();
+      }
+    });
+  }, [scale, opacity, dismissUnlock]);
+
   useEffect(() => {
     if (recentUnlock) {
-      opacity.value = withSpring(1);
-      scale.value = withSpring(1, { damping: 10, stiffness: 120 });
-      glowScale.value = withSpring(1.3, { damping: 8, stiffness: 80 });
+      haptics.success();
+      opacity.value = withTiming(1, { duration: 200 });
+      scale.value = withSpring(1, { damping: 18, stiffness: 220 });
 
       const timer = setTimeout(() => {
         handleDismiss();
       }, AUTO_DISMISS_MS);
       return () => clearTimeout(timer);
     } else {
-      scale.value = 0;
+      scale.value = 0.92;
       opacity.value = 0;
-      glowScale.value = 0.6;
     }
-  }, [recentUnlock]);
+  }, [recentUnlock, handleDismiss, scale, opacity]);
 
-  const handleDismiss = () => {
-    scale.value = withSpring(0, { damping: 15 });
-    opacity.value = withDelay(150, withSpring(0, {}, (finished) => {
-      if (finished) {
-        runOnJS(dismissUnlock)();
-      }
-    }));
-  };
+
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -65,65 +63,38 @@ export default function AchievementUnlock() {
     transform: [{ scale: scale.value }],
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: glowScale.value }],
-    opacity: opacity.value * 0.5,
-  }));
-
   if (!achievement) return null;
 
   return (
-    <Animated.View style={[styles.overlay, overlayStyle]} pointerEvents={recentUnlock ? 'auto' : 'none'}>
-      <View style={styles.centered}>
-        <Animated.View
-          style={[
-            styles.glow,
-            { backgroundColor: theme.accent },
-            glowStyle,
-          ]}
-        />
+    <Animated.View
+      style={[styles.overlay, { backgroundColor: theme.overlay }, overlayStyle]}
+      pointerEvents={recentUnlock ? 'auto' : 'none'}
+      accessibilityViewIsModal
+    >
+      <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} accessibilityLabel="Dismiss" />
 
-        <Animated.View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.accent },
-            cardStyle,
-          ]}
-        >
-          <View style={[styles.iconCircle, { backgroundColor: theme.accentLight }]}>
-            <View style={[styles.iconInner, { backgroundColor: theme.accent }]}>
-              <Ionicons
-                name={achievement.icon as keyof typeof Ionicons.glyphMap}
-                size={32}
-                color="#FFFFFF"
-              />
-            </View>
-          </View>
+      <Animated.View
+        style={[styles.card, { backgroundColor: theme.elevated }, cardStyle]}
+        accessibilityLiveRegion="polite"
+      >
+        <View style={[styles.iconCircle, { backgroundColor: theme.accentLight }]}>
+          <Ionicons
+            name={achievement.icon as keyof typeof Ionicons.glyphMap}
+            size={30}
+            color={theme.accent}
+          />
+        </View>
 
-          <Text style={[styles.unlockLabel, { color: theme.accent }]}>
-            Achievement Unlocked!
-          </Text>
-          <Text style={[styles.achievementName, { color: theme.text }]}>
-            {achievement.title}
-          </Text>
-          <Text style={[styles.achievementDesc, { color: theme.textSecondary }]}>
-            {achievement.description}
-          </Text>
+        <Text style={[typography.overline, styles.unlockLabel, { color: theme.accent }]}>
+          Achievement unlocked
+        </Text>
+        <Text style={[styles.achievementName, { color: theme.text }]}>{achievement.title}</Text>
+        <Text style={[styles.achievementDesc, { color: theme.textSecondary }]}>
+          {achievement.description}
+        </Text>
 
-          <Pressable
-            onPress={handleDismiss}
-            style={({ pressed }) => [
-              styles.dismissButton,
-              {
-                backgroundColor: theme.accent,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Text style={styles.dismissText}>Awesome!</Text>
-          </Pressable>
-        </Animated.View>
-      </View>
+        <Button title="Nice" size="lg" fullWidth onPress={handleDismiss} />
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -131,66 +102,37 @@ export default function AchievementUnlock() {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
     zIndex: 9999,
-  },
-  centered: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  glow: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
+    paddingHorizontal: spacing['3xl'],
   },
   card: {
-    width: 280,
+    width: '100%',
+    maxWidth: 320,
     borderRadius: borderRadius['2xl'],
-    borderWidth: 2,
     padding: spacing['2xl'],
     alignItems: 'center',
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  iconInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   unlockLabel: {
-    ...typography.captionBold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   achievementName: {
     ...typography.h2,
     textAlign: 'center',
-    marginBottom: spacing.xs,
   },
   achievementDesc: {
     ...typography.body,
     textAlign: 'center',
+    marginTop: spacing.xs,
     marginBottom: spacing['2xl'],
-  },
-  dismissButton: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing['4xl'],
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-  },
-  dismissText: {
-    ...typography.button,
-    color: '#FFFFFF',
   },
 });

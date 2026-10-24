@@ -1,28 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  FlatList,
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
-} from 'react-native';
+import { View, StyleSheet, FlatList, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInRight } from 'react-native-reanimated';
-import { useThemeStore } from '../../stores/useThemeStore';
-import { typography, spacing, borderRadius } from '../../theme';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { spacing, GUTTER } from '../../theme';
+import { Chip, SectionHeader } from '../ui';
+import { CocktailCardSkeleton } from '../ui/Skeleton';
 import { MOOD_MAP, ALL_MOODS } from '../../utils/moodMap';
-import type { MoodType } from '../../types/cocktail';
-import type { CocktailSummary } from '../../types/cocktail';
+import type { MoodType , CocktailSummary } from '../../types/cocktail';
 import { cocktailService } from '../../services/cocktailService';
+import { useAchievementStore } from '../../stores/useAchievementStore';
 import { CocktailCard } from '../cocktail/CocktailCard';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export function MoodSelector() {
-  const { theme } = useThemeStore();
+  const markUnique = useAchievementStore((s) => s.markUnique);
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
   const [cocktails, setCocktails] = useState<CocktailSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,6 +26,7 @@ export function MoodSelector() {
       }
 
       setSelectedMood(mood);
+      markUnique('taste_explorer', mood);
       setLoading(true);
       try {
         const config = MOOD_MAP[mood];
@@ -57,76 +48,60 @@ export function MoodSelector() {
         setLoading(false);
       }
     },
-    [selectedMood],
+    [selectedMood, markUnique],
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.text }]}>How are you feeling?</Text>
-        {selectedMood && (
-          <Pressable onPress={() => { setSelectedMood(null); setCocktails([]); }}>
-            <Text style={[styles.clearBtn, { color: theme.accent }]}>Clear</Text>
-          </Pressable>
-        )}
-      </View>
+    <View>
+      <SectionHeader
+        title="For your mood"
+        actionLabel={selectedMood ? 'Clear' : undefined}
+        onAction={() => {
+          setSelectedMood(null);
+          setCocktails([]);
+        }}
+      />
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.pillRow}
       >
-        {ALL_MOODS.map((mood, index) => {
+        {ALL_MOODS.map((mood) => {
           const config = MOOD_MAP[mood];
-          const isSelected = selectedMood === mood;
-
           return (
-            <Animated.View key={mood} entering={FadeInRight.delay(index * 50).springify()}>
-              <Pressable
-                onPress={() => handleMoodPress(mood)}
-                style={({ pressed }) => [
-                  styles.pill,
-                  {
-                    backgroundColor: isSelected ? config.color : theme.surface,
-                    borderColor: isSelected ? config.color : theme.border,
-                    transform: [{ scale: pressed ? 0.93 : 1 }],
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={config.icon as any}
-                  size={18}
-                  color={isSelected ? '#FFF' : config.color}
-                />
-                <Text
-                  style={[
-                    styles.pillLabel,
-                    { color: isSelected ? '#FFF' : theme.text },
-                  ]}
-                >
-                  {config.label}
-                </Text>
-              </Pressable>
-            </Animated.View>
+            <Chip
+              key={mood}
+              label={config.label}
+              icon={config.icon as keyof typeof Ionicons.glyphMap}
+              iconColor={config.color}
+              selected={selectedMood === mood}
+              onPress={() => handleMoodPress(mood)}
+            />
           );
         })}
       </ScrollView>
 
       {loading && (
-        <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
+        <View style={styles.listContent}>
+          <View style={styles.skeletonRow}>
+            <CocktailCardSkeleton />
+            <CocktailCardSkeleton />
+          </View>
+        </View>
       )}
 
       {!loading && cocktails.length > 0 && (
-        <Animated.View entering={FadeIn.duration(400)}>
+        <Animated.View entering={FadeIn.duration(250)}>
           <FlatList
             data={cocktails}
             horizontal
             showsHorizontalScrollIndicator={false}
             keyExtractor={(item) => item.idDrink}
             contentContainerStyle={styles.listContent}
-            renderItem={({ item, index }) => (
+            renderItem={({ item }) => (
               <View style={styles.cardWrapper}>
-                <CocktailCard cocktail={item} index={index} />
+                <CocktailCard cocktail={item} />
               </View>
             )}
           />
@@ -137,47 +112,16 @@ export function MoodSelector() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginTop: spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  title: {
-    ...typography.h3,
-  },
-  clearBtn: {
-    ...typography.captionBold,
-  },
   pillRow: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: GUTTER,
     gap: spacing.sm,
   },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    gap: spacing.xs + 2,
-  },
-  pillLabel: {
-    ...typography.captionBold,
-  },
-  loader: {
-    marginTop: spacing.xl,
-  },
   listContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: GUTTER,
     paddingTop: spacing.lg,
   },
+  skeletonRow: { flexDirection: 'row', gap: spacing.md },
   cardWrapper: {
     marginRight: spacing.md,
-    width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
   },
 });

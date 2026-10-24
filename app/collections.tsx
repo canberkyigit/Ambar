@@ -5,27 +5,24 @@ import {
   StyleSheet,
   Pressable,
   FlatList,
-  Modal,
   TextInput,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useCollectionsStore } from '../src/stores/useCollectionsStore';
 import { useAchievementStore } from '../src/stores/useAchievementStore';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { Button, IconButton, NavHeader, PressableScale, Sheet } from '../src/components/ui';
+import { haptics } from '../src/utils/haptics';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 import type { CocktailCollection } from '../src/types/cocktail';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2;
+const COLUMN_GAP = spacing.md;
+const CARD_WIDTH = (SCREEN_WIDTH - GUTTER * 2 - COLUMN_GAP) / 2;
 const EMOJI_OPTIONS = ['📚', '🍸', '🎉', '💝', '🌴', '🌙', '⭐', '🔥', '🍹', '👑'];
-const PRESET_IDS = new Set(['summer', 'date_night', 'classic', 'easy']);
 
 export default function CollectionsScreen() {
   const router = useRouter();
@@ -50,62 +47,52 @@ export default function CollectionsScreen() {
   };
 
   const renderItem = useCallback(
-    ({ item, index }: { item: CocktailCollection; index: number }) => {
-      const isPreset = PRESET_IDS.has(item.id);
-
+    ({ item }: { item: CocktailCollection }) => {
+      const count = item.cocktails.length;
       return (
-        <Animated.View
-          entering={FadeInDown.delay(index * 60).springify()}
-          style={{ width: CARD_WIDTH }}
+        <PressableScale
+          onPress={() => router.push(`/collection/${item.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.name}, ${count} ${count === 1 ? 'cocktail' : 'cocktails'}`}
+          style={[styles.card, { width: CARD_WIDTH, backgroundColor: theme.surface }]}
         >
-          <Pressable
-            onPress={() => router.push(`/collection/${item.id}`)}
-            style={({ pressed }) => [
-              styles.card,
-              {
-                backgroundColor: isPreset ? theme.accent + '10' : theme.surface,
-                borderColor: isPreset ? theme.accent + '30' : 'transparent',
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-          >
+          <View style={[styles.emojiWell, { backgroundColor: theme.surfaceSecondary }]}>
             <Text style={styles.cardEmoji}>{item.emoji}</Text>
-            <Text style={[styles.cardName, { color: theme.text }]} numberOfLines={1}>
-              {item.name}
-            </Text>
+          </View>
+          <Text style={[typography.bodyBold, { color: theme.text }]} numberOfLines={1}>
+            {item.name}
+          </Text>
+          {item.description ? (
             <Text style={[styles.cardDesc, { color: theme.textSecondary }]} numberOfLines={2}>
               {item.description}
             </Text>
-            <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
-              <Text style={[styles.cardCount, { color: theme.accent }]}>
-                {item.cocktails.length}
-              </Text>
-              <Text style={[styles.cardCountLabel, { color: theme.textTertiary }]}>
-                cocktails
-              </Text>
-            </View>
-          </Pressable>
-        </Animated.View>
+          ) : null}
+          <Text style={[styles.cardCount, { color: theme.textTertiary }]}>
+            {count} {count === 1 ? 'cocktail' : 'cocktails'}
+          </Text>
+        </PressableScale>
       );
     },
     [theme, router],
   );
 
+  const inputStyle = [styles.input, { backgroundColor: theme.surfaceSecondary, color: theme.text }];
+  const labelStyle = [styles.label, { color: theme.textSecondary }];
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Collections</Text>
-        <Pressable
-          onPress={() => setModalVisible(true)}
-          style={[styles.addBtn, { backgroundColor: theme.accent }]}
-          hitSlop={8}
-        >
-          <Ionicons name="add" size={20} color="#FFF" />
-        </Pressable>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader
+        title="Collections"
+        right={
+          <IconButton
+            icon="add"
+            variant="tinted"
+            size={38}
+            onPress={() => setModalVisible(true)}
+            accessibilityLabel="New collection"
+          />
+        }
+      />
 
       <FlatList
         data={collections}
@@ -113,158 +100,118 @@ export default function CollectionsScreen() {
         renderItem={renderItem}
         numColumns={2}
         columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + spacing['2xl'] }]}
         showsVerticalScrollIndicator={false}
       />
 
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+      <Sheet visible={modalVisible} onClose={() => setModalVisible(false)} title="New collection">
+        <Text style={labelStyle}>Icon</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.emojiRow}
+          keyboardShouldPersistTaps="handled"
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setModalVisible(false)} />
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.modalHandle}>
-              <View style={[styles.handle, { backgroundColor: theme.border }]} />
-            </View>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>New Collection</Text>
+          {EMOJI_OPTIONS.map((e) => {
+            const selected = emoji === e;
+            return (
+              <Pressable
+                key={e}
+                onPress={() => {
+                  haptics.selection();
+                  setEmoji(e);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={[
+                  styles.emojiOption,
+                  {
+                    backgroundColor: selected ? theme.accentLight : theme.surfaceSecondary,
+                    borderColor: selected ? theme.accent : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={styles.emojiText}>{e}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>EMOJI</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.emojiRowContent}
-            >
-              {EMOJI_OPTIONS.map((e) => (
-                <Pressable
-                  key={e}
-                  onPress={() => setEmoji(e)}
-                  style={[
-                    styles.emojiOption,
-                    {
-                      backgroundColor: emoji === e ? theme.accent + '20' : theme.surfaceSecondary,
-                      borderColor: emoji === e ? theme.accent : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={styles.emojiText}>{e}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+        <Text style={[labelStyle, styles.fieldGap]}>Name</Text>
+        <TextInput
+          style={inputStyle}
+          placeholder="e.g. Brunch favorites"
+          placeholderTextColor={theme.textTertiary}
+          selectionColor={theme.accent}
+          value={name}
+          onChangeText={setName}
+          maxLength={30}
+          returnKeyType="next"
+        />
 
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>NAME</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.surfaceSecondary, color: theme.text }]}
-              placeholder="Collection name"
-              placeholderTextColor={theme.textTertiary}
-              value={name}
-              onChangeText={setName}
-              maxLength={30}
-            />
+        <Text style={[labelStyle, styles.fieldGap]}>Description</Text>
+        <TextInput
+          style={inputStyle}
+          placeholder="A short description (optional)"
+          placeholderTextColor={theme.textTertiary}
+          selectionColor={theme.accent}
+          value={description}
+          onChangeText={setDescription}
+          maxLength={60}
+          returnKeyType="done"
+          onSubmitEditing={handleCreate}
+        />
 
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>DESCRIPTION</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.surfaceSecondary, color: theme.text }]}
-              placeholder="A short description"
-              placeholderTextColor={theme.textTertiary}
-              value={description}
-              onChangeText={setDescription}
-              maxLength={60}
-            />
-
-            <Pressable
-              onPress={handleCreate}
-              style={({ pressed }) => [
-                styles.createBtn,
-                { backgroundColor: name.trim() ? theme.accent : theme.border, opacity: pressed ? 0.85 : 1 },
-              ]}
-              disabled={!name.trim()}
-            >
-              <Text style={styles.createBtnText}>Create Collection</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        <Button
+          title="Create collection"
+          size="lg"
+          fullWidth
+          onPress={handleCreate}
+          disabled={!name.trim()}
+          style={styles.createBtn}
+        />
+      </Sheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
+  listContent: { paddingHorizontal: GUTTER, paddingTop: spacing.sm },
+  row: { gap: COLUMN_GAP, marginBottom: COLUMN_GAP },
+  card: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    minHeight: 168,
+  },
+  emojiWell: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  title: { ...typography.h2 },
-  addBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  row: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
+    justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  listContent: { paddingBottom: 40 },
-  card: {
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    alignItems: 'center',
-    minHeight: 170,
-  },
-  cardEmoji: { fontSize: 36, marginBottom: spacing.sm },
-  cardName: { ...typography.captionBold, textAlign: 'center', marginBottom: 2 },
-  cardDesc: { ...typography.small, textAlign: 'center', lineHeight: 15, color: '#999' },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    marginTop: 'auto',
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    width: '100%',
-    justifyContent: 'center',
-  },
-  cardCount: { ...typography.bodyBold },
-  cardCountLabel: { ...typography.small },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: {
-    borderTopLeftRadius: borderRadius['2xl'],
-    borderTopRightRadius: borderRadius['2xl'],
-    padding: spacing['2xl'],
-    paddingBottom: spacing['5xl'],
-  },
-  modalHandle: { alignItems: 'center', marginBottom: spacing.lg },
-  handle: { width: 40, height: 4, borderRadius: 2 },
-  modalTitle: { ...typography.h3, marginBottom: spacing.xl },
-  inputLabel: { ...typography.small, letterSpacing: 1, marginBottom: spacing.sm, marginTop: spacing.lg },
-  emojiRowContent: { gap: spacing.sm },
+  cardEmoji: { fontSize: 24 },
+  cardDesc: { ...typography.caption, marginTop: 2 },
+  cardCount: { ...typography.caption, marginTop: 'auto', paddingTop: spacing.md },
+  label: { ...typography.captionBold, marginBottom: spacing.sm },
+  fieldGap: { marginTop: spacing.lg },
+  emojiRow: { gap: spacing.sm },
   emojiOption: {
-    width: 44, height: 44, borderRadius: borderRadius.md,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 2,
+    width: 46,
+    height: 46,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
   emojiText: { fontSize: 22 },
   input: {
     ...typography.body,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
+    height: 46,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: borderRadius.md,
   },
-  createBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginTop: spacing['2xl'],
-  },
-  createBtnText: { ...typography.button, color: '#FFF' },
+  createBtn: { marginTop: spacing['2xl'] },
 });

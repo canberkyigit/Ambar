@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { SocialPost, SocialComment } from '../types/cocktail';
+import type { SocialPost } from '../types/cocktail';
 
 const USERNAMES = [
   'cocktail_lover', 'mixmaster_jane', 'shaker_pro', 'bar_tender_life',

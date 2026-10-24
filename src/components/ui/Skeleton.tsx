@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, ViewStyle, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -23,7 +23,7 @@ export function Skeleton({ width, height, borderRadius = br.md, style }: Skeleto
 
   useEffect(() => {
     shimmer.value = withRepeat(withTiming(1, { duration: 1200 }), -1, true);
-  }, []);
+  }, [shimmer]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(shimmer.value, [0, 1], [0.4, 0.8]),
@@ -45,15 +45,14 @@ export function Skeleton({ width, height, borderRadius = br.md, style }: Skeleto
   );
 }
 
+const CARD_WIDTH = (Dimensions.get('window').width - 16 * 2 - 12) / 2;
+
+/** Matches the layout of CocktailCard (photo + name). */
 export function CocktailCardSkeleton() {
-  const { theme } = useThemeStore();
   return (
-    <View style={[styles.card, { backgroundColor: theme.card }]}>
-      <Skeleton width="100%" height={160} borderRadius={br.lg} />
-      <View style={styles.cardContent}>
-        <Skeleton width="70%" height={16} />
-        <Skeleton width="40%" height={12} style={{ marginTop: 8 }} />
-      </View>
+    <View style={styles.card}>
+      <Skeleton width="100%" height={CARD_WIDTH * 1.1} borderRadius={br.lg} />
+      <Skeleton width="65%" height={14} style={{ marginTop: 10 }} />
     </View>
   );
 }
@@ -62,7 +61,7 @@ export function CocktailCardSkeleton() {
 export function CocktailListRowSkeleton() {
   return (
     <View style={listRowStyles.row}>
-      <Skeleton width={50} height={50} borderRadius={br.md} />
+      <Skeleton width={56} height={56} borderRadius={br.md} />
       <View style={listRowStyles.info}>
         <Skeleton width="70%" height={14} />
         <Skeleton width="45%" height={12} style={{ marginTop: 6 }} />
@@ -76,8 +75,8 @@ const listRowStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 12,
+    paddingVertical: 8,
+    gap: 14,
   },
   info: {
     flex: 1,
@@ -86,11 +85,7 @@ const listRowStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: br.lg,
-    overflow: 'hidden',
+    width: CARD_WIDTH,
     marginBottom: 16,
-  },
-  cardContent: {
-    padding: 12,
   },
 });

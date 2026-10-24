@@ -5,7 +5,6 @@ import {
   TextInput,
   ScrollView,
   StyleSheet,
-  Pressable,
   Image,
   Alert,
   KeyboardAvoidingView,
@@ -15,10 +14,10 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../src/stores/useThemeStore';
 import { useCustomRecipeStore } from '../src/stores/useCustomRecipeStore';
-import { typography, spacing, borderRadius } from '../src/theme';
+import { Button, Chip, IconButton, NavHeader, PressableScale } from '../src/components/ui';
+import { typography, spacing, borderRadius, GUTTER } from '../src/theme';
 import type { Ingredient } from '../src/types/cocktail';
 
 export default function CreateRecipeScreen() {
@@ -66,12 +65,12 @@ export default function CreateRecipeScreen() {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Missing Info', 'Please enter a cocktail name.');
+      Alert.alert('Missing info', 'Please enter a cocktail name.');
       return;
     }
     const validIngredients = ingredients.filter((i) => i.name.trim());
     if (validIngredients.length === 0) {
-      Alert.alert('Missing Info', 'Please add at least one ingredient.');
+      Alert.alert('Missing info', 'Please add at least one ingredient.');
       return;
     }
 
@@ -88,268 +87,192 @@ export default function CreateRecipeScreen() {
     router.back();
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="close" size={28} color={theme.text} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>New Recipe</Text>
-          <Pressable onPress={handleSave} hitSlop={12}>
-            <Text style={[styles.saveText, { color: theme.accent }]}>Save</Text>
-          </Pressable>
-        </View>
+  const inputStyle = [styles.input, { backgroundColor: theme.surfaceSecondary, color: theme.text }];
+  const labelStyle = [styles.label, { color: theme.textSecondary }];
 
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NavHeader title="New recipe" />
+
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
-          {/* Image Picker */}
-          <Animated.View entering={FadeInDown.springify()}>
-            <Pressable onPress={pickImage} style={[styles.imagePicker, { backgroundColor: theme.surface }]}>
-              {image ? (
-                <Image source={{ uri: image }} style={styles.imagePreview} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="camera" size={40} color={theme.textTertiary} />
-                  <Text style={[styles.imagePlaceholderText, { color: theme.textTertiary }]}>
-                    Add Photo
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </Animated.View>
+          {/* Photo */}
+          <PressableScale
+            onPress={pickImage}
+            style={[styles.imagePicker, { backgroundColor: theme.surfaceSecondary }]}
+            accessibilityRole="button"
+            accessibilityLabel={image ? 'Change photo' : 'Add photo'}
+          >
+            {image ? (
+              <Image source={{ uri: image }} style={styles.imagePreview} />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="camera-outline" size={28} color={theme.textSecondary} />
+                <Text style={[typography.captionBold, { color: theme.textSecondary }]}>Add photo</Text>
+              </View>
+            )}
+          </PressableScale>
 
           {/* Name */}
-          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.field}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Name</Text>
+          <View style={styles.field}>
+            <Text style={labelStyle}>Name</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+              style={inputStyle}
               placeholder="Cocktail name"
               placeholderTextColor={theme.textTertiary}
+              selectionColor={theme.accent}
               value={name}
               onChangeText={setName}
+              returnKeyType="next"
             />
-          </Animated.View>
+          </View>
 
-          {/* Category & Glass */}
-          <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.row}>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Category</Text>
+          {/* Category & glass */}
+          <View style={[styles.field, styles.row]}>
+            <View style={styles.flex}>
+              <Text style={labelStyle}>Category</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+                style={inputStyle}
                 placeholder="e.g. Tropical"
                 placeholderTextColor={theme.textTertiary}
+                selectionColor={theme.accent}
                 value={category}
                 onChangeText={setCategory}
               />
             </View>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Glass</Text>
+            <View style={styles.flex}>
+              <Text style={labelStyle}>Glass</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+                style={inputStyle}
                 placeholder="e.g. Highball"
                 placeholderTextColor={theme.textTertiary}
+                selectionColor={theme.accent}
                 value={glass}
                 onChangeText={setGlass}
               />
             </View>
-          </Animated.View>
+          </View>
 
-          {/* Alcoholic Toggle */}
-          <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.toggleRow}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Type</Text>
-            <View style={styles.toggleButtons}>
-              <Pressable
-                onPress={() => setAlcoholic(true)}
-                style={[
-                  styles.toggleBtn,
-                  { backgroundColor: alcoholic ? theme.accent : theme.surface },
-                ]}
-              >
-                <Text style={{ color: alcoholic ? '#FFFFFF' : theme.textSecondary, ...typography.captionBold }}>
-                  Alcoholic
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setAlcoholic(false)}
-                style={[
-                  styles.toggleBtn,
-                  { backgroundColor: !alcoholic ? theme.accent : theme.surface },
-                ]}
-              >
-                <Text style={{ color: !alcoholic ? '#FFFFFF' : theme.textSecondary, ...typography.captionBold }}>
-                  Non-Alcoholic
-                </Text>
-              </Pressable>
+          {/* Type */}
+          <View style={styles.field}>
+            <Text style={labelStyle}>Type</Text>
+            <View style={styles.chips}>
+              <Chip label="Alcoholic" selected={alcoholic} onPress={() => setAlcoholic(true)} />
+              <Chip label="Non-alcoholic" selected={!alcoholic} onPress={() => setAlcoholic(false)} />
             </View>
-          </Animated.View>
+          </View>
 
           {/* Ingredients */}
-          <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.field}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Ingredients</Text>
-            {ingredients.map((item, index) => (
-              <View key={index} style={styles.ingredientRow}>
-                <TextInput
-                  style={[styles.input, styles.ingredientInput, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
-                  placeholder="Ingredient"
-                  placeholderTextColor={theme.textTertiary}
-                  value={item.name}
-                  onChangeText={(v) => updateIngredient(index, 'name', v)}
-                />
-                <TextInput
-                  style={[styles.input, styles.measureInput, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
-                  placeholder="Amount"
-                  placeholderTextColor={theme.textTertiary}
-                  value={item.measure}
-                  onChangeText={(v) => updateIngredient(index, 'measure', v)}
-                />
-                <Pressable onPress={() => removeIngredient(index)} hitSlop={8}>
-                  <Ionicons
-                    name="remove-circle"
-                    size={24}
-                    color={ingredients.length > 1 ? theme.error : theme.textTertiary}
+          <View style={styles.field}>
+            <Text style={labelStyle}>Ingredients</Text>
+            <View style={styles.ingredients}>
+              {ingredients.map((item, index) => (
+                <View key={index} style={styles.ingredientRow}>
+                  <TextInput
+                    style={[inputStyle, styles.ingredientInput]}
+                    placeholder="Ingredient"
+                    placeholderTextColor={theme.textTertiary}
+                    selectionColor={theme.accent}
+                    value={item.name}
+                    onChangeText={(v) => updateIngredient(index, 'name', v)}
                   />
-                </Pressable>
-              </View>
-            ))}
-            <Pressable
+                  <TextInput
+                    style={[inputStyle, styles.measureInput]}
+                    placeholder="Amount"
+                    placeholderTextColor={theme.textTertiary}
+                    selectionColor={theme.accent}
+                    value={item.measure}
+                    onChangeText={(v) => updateIngredient(index, 'measure', v)}
+                  />
+                  <IconButton
+                    icon="remove-circle-outline"
+                    variant="plain"
+                    color={ingredients.length > 1 ? theme.textSecondary : theme.textTertiary}
+                    onPress={() => removeIngredient(index)}
+                    accessibilityLabel={`Remove ingredient ${index + 1}`}
+                  />
+                </View>
+              ))}
+            </View>
+            <Button
+              title="Add ingredient"
+              icon="add"
+              variant="ghost"
+              size="sm"
               onPress={addIngredientRow}
-              style={[styles.addButton, { borderColor: theme.accent }]}
-            >
-              <Ionicons name="add" size={20} color={theme.accent} />
-              <Text style={[styles.addButtonText, { color: theme.accent }]}>
-                Add Ingredient
-              </Text>
-            </Pressable>
-          </Animated.View>
+              style={styles.addIngredient}
+            />
+          </View>
 
           {/* Instructions */}
-          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.field}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Instructions</Text>
+          <View style={styles.field}>
+            <Text style={labelStyle}>Instructions</Text>
             <TextInput
-              style={[styles.input, styles.textArea, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
-              placeholder="How to prepare this cocktail..."
+              style={[inputStyle, styles.textArea]}
+              placeholder="How to prepare this cocktail…"
               placeholderTextColor={theme.textTertiary}
+              selectionColor={theme.accent}
               value={instructions}
               onChangeText={setInstructions}
               multiline
-              numberOfLines={5}
               textAlignVertical="top"
             />
-          </Animated.View>
+          </View>
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+
+        <View
+          style={[
+            styles.bottomBar,
+            {
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+              backgroundColor: theme.background,
+              borderTopColor: theme.separator,
+            },
+          ]}
+        >
+          <Button title="Save recipe" size="lg" fullWidth onPress={handleSave} />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  headerTitle: {
-    ...typography.h3,
-  },
-  saveText: {
-    ...typography.button,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
+  scrollContent: { paddingHorizontal: GUTTER, paddingTop: spacing.sm, paddingBottom: spacing['2xl'] },
   imagePicker: {
-    marginHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
+    height: 168,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    height: 200,
   },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  imagePlaceholderText: {
-    ...typography.body,
-  },
-  field: {
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  label: {
-    ...typography.captionBold,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  field: { marginTop: spacing.xl },
+  row: { flexDirection: 'row', gap: spacing.md },
+  label: { ...typography.captionBold, marginBottom: spacing.sm },
   input: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
     ...typography.body,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  toggleRow: {
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  toggleButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  toggleBtn: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    height: 46,
+    paddingHorizontal: spacing.md + 2,
     borderRadius: borderRadius.md,
   },
-  ingredientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  ingredientInput: {
-    flex: 2,
-  },
-  measureInput: {
-    flex: 1,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  addButtonText: {
-    ...typography.bodyBold,
-  },
-  textArea: {
-    minHeight: 120,
+  chips: { flexDirection: 'row', gap: spacing.sm },
+  ingredients: { gap: spacing.sm },
+  ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  ingredientInput: { flex: 2 },
+  measureInput: { flex: 1 },
+  addIngredient: { alignSelf: 'flex-start', marginTop: spacing.xs, paddingHorizontal: 0 },
+  textArea: { height: undefined, minHeight: 120, paddingTop: spacing.md, paddingBottom: spacing.md },
+  bottomBar: {
+    paddingHorizontal: GUTTER,
     paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

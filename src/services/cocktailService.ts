@@ -1,15 +1,31 @@
+import { Image } from 'expo-image';
 import { api } from './api';
-import { withCache, getCached } from './cache';
+import { withCache, getCached, peekCached, primeCache } from './cache';
+import { extractIngredients } from '../types/cocktail';
 import type { Cocktail, CocktailSummary, Category, IngredientItem } from '../types/cocktail';
+
+export interface IngredientMatch extends CocktailSummary {
+  /** How many of the requested ingredients the cocktail uses. */
+  matched: number;
+  /** Ingredients the cocktail needs beyond the requested ones. */
+  missing: number;
+}
+
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+
+function normalizeIngredient(name: string) {
+  return name.trim().toLowerCase();
+}
 
 const TTL_SHORT = 1000 * 60 * 30;     // 30 min
 const TTL_LONG  = 1000 * 60 * 60 * 6; // 6 hours (categories, lists)
 
 async function fetchWithFallback<T>(key: string, fetcher: () => Promise<T>, ttl: number): Promise<T> {
   try {
-    return await withCache(key, fetcher, ttl);
+    // Long-lived reference data (letters, lists, categories) can be shown stale while it refreshes.
+    return await withCache(key, fetcher, ttl, { staleWhileRevalidate: ttl >= TTL_LONG });
   } catch {
-    const cached = await getCached<T>(key);
+    const cached = await getCached<T>(key, true);
     if (cached !== null) return cached;
     throw new Error(`No cache and network failed for ${key}`);
   }
@@ -24,10 +40,18 @@ export const cocktailService = {
   },
 
   async searchByFirstLetter(letter: string): Promise<Cocktail[]> {
-    return fetchWithFallback(`search_letter_${letter}`, async () => {
+    const drinks: Cocktail[] = await fetchWithFallback(`search_letter_${letter}`, async () => {
       const { data } = await api.get('/search.php', { params: { f: letter } });
       return data.drinks || [];
     }, TTL_LONG);
+    // These are full recipes, so opening any of them later needs no network request.
+    drinks.forEach((d) => primeCache(`cocktail_${d.idDrink}`, d, TTL_LONG));
+    return drinks;
+  },
+
+  /** Recipe already in memory this session (list data or a prefetch), for a first-frame render. */
+  peekById(id: string): Cocktail | null {
+    return peekCached<Cocktail>(`cocktail_${id}`);
   },
 
   async getById(id: string): Promise<Cocktail | null> {
@@ -47,6 +71,41 @@ export const cocktailService = {
       const { data } = await api.get('/filter.php', { params: { c: category } });
       return data.drinks || [];
     }, TTL_LONG);
+  },
+
+  /** Full catalog with ingredients, assembled from the per-letter searches (cached). */
+  async getAllCocktails(): Promise<Cocktail[]> {
+    const all: Cocktail[] = [];
+    for (let i = 0; i < ALPHABET.length; i += 6) {
+      const batch = ALPHABET.slice(i, i + 6);
+      const results = await Promise.all(batch.map((l) => this.searchByFirstLetter(l).catch(() => [] as Cocktail[])));
+      all.push(...results.flat());
+    }
+    return all;
+  },
+
+  /**
+   * Cocktails that use any of `ingredients`, best matches first. Matching runs locally on the
+   * full catalog: the API's ingredient filter returns only one drink on the free key.
+   */
+  async getByIngredients(ingredients: string[]): Promise<IngredientMatch[]> {
+    const wanted = new Set(ingredients.map(normalizeIngredient));
+    const all = await this.getAllCocktails();
+    const matches: IngredientMatch[] = [];
+    for (const c of all) {
+      const names = extractIngredients(c).map((i) => normalizeIngredient(i.name));
+      const matched = names.filter((n) => wanted.has(n)).length;
+      if (matched > 0) {
+        matches.push({
+          idDrink: c.idDrink,
+          strDrink: c.strDrink,
+          strDrinkThumb: c.strDrinkThumb,
+          matched,
+          missing: names.length - matched,
+        });
+      }
+    }
+    return matches.sort((a, b) => b.matched - a.matched || a.missing - b.missing || a.strDrink.localeCompare(b.strDrink));
   },
 
   async getByIngredient(ingredient: string): Promise<CocktailSummary[]> {
@@ -96,3 +155,13 @@ export const cocktailService = {
     }, TTL_SHORT);
   },
 };
+
+/**
+ * Warm the recipe and its full-size photo as soon as a finger lands on a cocktail, so the
+ * detail screen usually has both by the time the push animation ends. Requests are shared
+ * with the detail screen's own fetch (see the in-flight dedupe in cache.ts).
+ */
+export function prefetchCocktail(id: string, thumbUrl?: string) {
+  cocktailService.getById(id).catch(() => {});
+  if (thumbUrl) Image.prefetch(thumbUrl, 'memory-disk').catch(() => {});
+}

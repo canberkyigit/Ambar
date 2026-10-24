@@ -1,22 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useThemeStore } from '../../stores/useThemeStore';
-import { typography, spacing, borderRadius } from '../../theme';
+import { typography, spacing, GUTTER } from '../../theme';
+import { CocktailCardSkeleton } from '../ui/Skeleton';
 import { getSeasonalConfig } from '../../utils/seasonalData';
 import { cocktailService } from '../../services/cocktailService';
 import { CocktailCard } from '../cocktail/CocktailCard';
 import type { CocktailSummary } from '../../types/cocktail';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export function SeasonalSection() {
   const { theme } = useThemeStore();
@@ -56,21 +47,22 @@ export function SeasonalSection() {
   }, [config.cocktailNames]);
 
   return (
-    <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.container}>
-      <View style={[styles.banner, { backgroundColor: config.color + '15' }]}>
-        <View style={[styles.bannerIcon, { backgroundColor: config.color + '25' }]}>
-          <Ionicons name={config.icon as any} size={20} color={config.color} />
+    <View>
+      <View style={styles.header}>
+        <View style={[styles.icon, { backgroundColor: config.color + '22' }]}>
+          <Ionicons name={config.icon as keyof typeof Ionicons.glyphMap} size={18} color={config.color} />
         </View>
-        <View style={styles.bannerText}>
-          <Text style={[styles.title, { color: theme.text }]}>{config.label}</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Seasonal picks just for you
-          </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[typography.h2, { color: theme.text }]}>{config.label}</Text>
+          <Text style={[typography.caption, { color: theme.textSecondary }]}>Picked for the season</Text>
         </View>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
+        <View style={[styles.listContent, styles.skeletonRow]}>
+          <CocktailCardSkeleton />
+          <CocktailCardSkeleton />
+        </View>
       ) : (
         <FlatList
           data={cocktails}
@@ -78,45 +70,30 @@ export function SeasonalSection() {
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item) => item.idDrink}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <View style={styles.cardWrapper}>
-              <CocktailCard cocktail={item} index={index} />
+              <CocktailCard cocktail={item} />
             </View>
           )}
         />
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginTop: spacing.sm,
-  },
-  banner: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.lg,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
+    paddingHorizontal: GUTTER,
+    marginBottom: spacing.md,
     gap: spacing.md,
   },
-  bannerIcon: {
-    width: 40, height: 40, borderRadius: 20,
+  icon: {
+    width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  bannerText: { flex: 1 },
-  title: { ...typography.bodyBold },
-  subtitle: { ...typography.small, marginTop: 1 },
-  loader: {
-    marginTop: spacing.xl,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-  },
-  cardWrapper: {
-    marginRight: spacing.md,
-    width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
-  },
+  listContent: { paddingHorizontal: GUTTER },
+  skeletonRow: { flexDirection: 'row', gap: spacing.md },
+  cardWrapper: { marginRight: spacing.md },
 });

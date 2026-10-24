@@ -1,14 +1,15 @@
 import { useMemo } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 import { useSocialStore } from '../../src/stores/useSocialStore';
 import { PostCard } from '../../src/components/social/PostCard';
+import { NavHeader } from '../../src/components/ui';
+import { EmptyState } from '../../src/components/shared/EmptyState';
+import { spacing } from '../../src/theme';
 
 export default function PostDetailScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useThemeStore();
@@ -16,38 +17,28 @@ export default function PostDetailScreen() {
 
   const post = useMemo(() => posts.find((p) => p.id === id), [posts, id]);
 
-  if (!post) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </Pressable>
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        <PostCard post={post} index={0} defaultExpandComments />
-      </ScrollView>
+      <NavHeader title="Post" modal />
+      {post ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: insets.bottom + spacing['2xl'] }}
+        >
+          <PostCard post={post} defaultExpandComments />
+        </ScrollView>
+      ) : (
+        <EmptyState
+          icon="images-outline"
+          title="Post not available"
+          subtitle="It may have been deleted. Go back to see the latest posts."
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  backBtn: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
 });

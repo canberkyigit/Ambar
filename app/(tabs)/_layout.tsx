@@ -1,93 +1,41 @@
+import { View, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FloatingTabBar } from '../../src/components/navigation/FloatingTabBar';
 import { useThemeStore } from '../../src/stores/useThemeStore';
 
+const TABS: { name: string; title: string }[] = [
+  { name: 'index', title: 'Feed' },
+  { name: 'search', title: 'Cocktails' },
+  { name: 'discover', title: 'Discover' },
+  { name: 'favorites', title: 'Bars' },
+  { name: 'profile', title: 'Profile' },
+];
+
 export default function TabLayout() {
-  const { scheme, theme } = useThemeStore();
+  const { theme } = useThemeStore();
+  const insets = useSafeAreaInsets();
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.iconActive,
-        tabBarInactiveTintColor: theme.iconInactive,
-        tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.tabBar,
-          borderTopColor: theme.tabBarBorder,
-          borderTopWidth: 0.5,
-          height: Platform.OS === 'ios' ? 88 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-          paddingTop: 8,
-          elevation: 0,
-        },
-        tabBarBackground: () =>
-          Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={80}
-              tint={scheme === 'dark' ? 'dark' : 'light'}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-              }}
-            />
-          ) : null,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Feed',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
+    <View style={styles.root}>
+      <Tabs tabBar={(props) => <FloatingTabBar {...props} />} screenOptions={{ headerShown: false }}>
+        {TABS.map((tab) => (
+          <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
+        ))}
+      </Tabs>
+      {/* Keeps scrolled content from running under the status bar. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[theme.background, theme.background, theme.background + '00']}
+        locations={[0, 0.75, 1]}
+        style={[styles.statusScrim, { height: insets.top + 6 }]}
       />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Cocktails',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wine" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
-          title: 'Discover',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="compass" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="favorites"
-        options={{
-          title: 'Bars',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="location" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  statusScrim: { position: 'absolute', top: 0, left: 0, right: 0 },
+});

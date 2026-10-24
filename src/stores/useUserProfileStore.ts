@@ -56,14 +56,15 @@ export const useUserProfileStore = create<UserProfileState>()(
     {
       name: 'user-profile-storage-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      merge: (persisted, current) => ({
-        ...current,
-        ...persisted,
-        profile:
-          persisted && typeof persisted === 'object' && persisted.profile && typeof (persisted.profile as BACProfile).weight === 'number'
-            ? (persisted.profile as BACProfile)
-            : DEFAULT_PROFILE,
-      }),
+      merge: (persisted, current) => {
+        const saved = (persisted && typeof persisted === 'object' ? persisted : {}) as Partial<typeof current>;
+        return {
+          ...current,
+          ...saved,
+          // Older saves may hold a malformed BAC profile; fall back to defaults.
+          profile: saved.profile && typeof saved.profile.weight === 'number' ? saved.profile : DEFAULT_PROFILE,
+        };
+      },
     },
   ),
 );
